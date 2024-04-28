@@ -49,6 +49,7 @@ set(MOC_HEADERS
     fxparameditorpopup.h
     histogrampopup.h
     historypane.h
+    vectorlevelviewer.h
     imageviewer.h
     layerfooterpanel.h
     layerheaderpanel.h
@@ -351,6 +352,7 @@ set(SOURCES
     mergecmapped.cpp
     comboviewerpane.cpp
     historypane.cpp
+    vectorlevelviewer.cpp
     cleanupsettingspane.cpp
     audiorecordingpopup.cpp
     locatorpopup.cpp
@@ -417,7 +419,12 @@ endif()
 qt5_wrap_cpp(SOURCES ${MOC_HEADERS})
 
 if(BUILD_ENV_MSVC)
-    add_executable(Tahoma2D WIN32 ${HEADERS} ${SOURCES} ${OBJCSOURCES} ${RESOURCES} ${RC_FILE})
+    add_executable(Tahoma2D WIN32 ${HEADERS} ${SOURCES} ${OBJCSOURCES} ${RESOURCES} ${RC_FILE}
+        vectorlevelviewer.h
+        vectorlevelviewer.cpp
+
+        multicolumnsortproxymodel.h
+        multicolumnsortproxymodel.cpp)
 else()
     set(MACOSX_BUNDLE_ICON_FILE "Tahoma2D.icns")
     set_source_files_properties(Tahoma2D.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")

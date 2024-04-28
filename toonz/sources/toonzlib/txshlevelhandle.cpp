@@ -6,6 +6,7 @@
 #include "toonz/txshsimplelevel.h"
 #include "toonz/txsheet.h"
 #include "toonz/txshcell.h"
+#include <QDebug>
 
 //=============================================================================
 // TXshLevelHandle
@@ -43,6 +44,7 @@ void TXshLevelHandle::setLevel(TXshLevel *level) {
   bool levelExists = oldLevel ? oldLevel->getRefCount() > 1 : false;
   if (oldLevel) oldLevel->release();
   emit xshLevelSwitched(levelExists ? oldLevel : 0);
+  qDebug() << "emitted xshLevelSwitched(" << (levelExists ? oldLevel : 0) << ")";
 }
 
 //-----------------------------------------------------------------------------

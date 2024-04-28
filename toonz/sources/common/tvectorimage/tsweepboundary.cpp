@@ -1500,7 +1500,7 @@ inline bool deleteUnlinkedLoops(LinkedQuadraticList &inputBoundaries) {
 namespace {
 
 void computeIntersections(IntersectionData &intData,
-                          const vector<TStroke *> &strokeArray);
+                          const vector<TStroke *> &strokeArray) std::cout << "tsweepboundary.cpp.computeIntersections( doing nothing )\n";
 
 //-------------------------------------------------------------------
 
@@ -1771,6 +1771,7 @@ int myIntersect(const TStroke *s1, const TStroke *s2,
 
 void computeIntersections(IntersectionData &intData,
                           const vector<TStroke *> &strokeArray) {
+  std::cout << "tsweepboundary.cpp.computeIntersections(IntersectionData &intData, const vector<TStroke*> &strokeArray)\n";
   int i, j;
 
   assert(intData.m_intersectedStrokeArray.empty());

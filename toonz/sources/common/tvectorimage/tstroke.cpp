@@ -1769,12 +1769,12 @@ void TStroke::reduceControlPoints(double error, vector<int> corners) {
         missedLen = 0;
         step      = 1.0 / quadLen;  // err instead of 1.0?
 
-        // si, lo so che t non e' lineare sulla lunghezza, ma secondo me
-        // funziona benissimo
-        // cosi'. tanto devo interpolare dei punto e non e' richiesto che siano
-        // a distanze
-        // simili. e poi difficilmete il punto p1 di una quadratica e' cosi'
-        // asimmetrico
+         // yes, I know that t is not linear on length, but in my opinion
+         // works great
+         // Like this'. anyway I have to interpolate points and they are not required
+         // at distances
+         // similar. and then the point p1 of a quadratic is unlikely to be like this
+         // asymmetric
         for (double t = 0; t < 1.0; t += step)
           tempVect.push_back(quad->getThickPoint(t));
       }
@@ -2247,35 +2247,47 @@ void TStroke::split(double w, TStroke &f, TStroke &s) const {
     delete tq2;
     if (f.getControlPointCount() == 3 &&
         f.getControlPoint(0) !=
-            f.getControlPoint(2))  // gli stroke con solo 1 chunk vengono fatti
-                                   // dal tape tool...e devono venir
-                                   // riconosciuti come speciali di autoclose
-                                   // proprio dal fatto che hanno 1 solo chunk.
+            f.getControlPoint(2))  // strokes with only 1 chunk are done
+                                   // from the tape tool...and they must come
+                                   // recognized as autoclose special
+                                   // precisely from the fact that they have only 1 chunk.
       f.insertControlPoints(0.5);
     if (s.getControlPointCount() == 3 &&
         s.getControlPoint(0) !=
-            s.getControlPoint(2))  // gli stroke con solo 1 chunk vengono fatti
-                                   // dal tape tool...e devono venir
-                                   // riconosciuti come speciali di autoclose
-                                   // proprio dal fatto che hanno 1 solo chunk.
+            s.getControlPoint(2))  // strokes with only 1 chunk are done
+                                   // from the tape tool...and they must come
+                                   // recognized as autoclose special
+                                   // precisely from the fact that they have only 1 chunk.
       s.insertControlPoints(0.5);
   }
 }
 
 //-----------------------------------------------------------------------------
 
-void TStroke::print(ostream &os) const {
+void TStroke::print(ostream &os, int stroke, std::vector<int> groupIds) const {
   // m_imp->print(os);
   const TThickQuadratic *q;
 
-  os << "Punti di controllo\n";
-  for (int i = 0; i < getChunkCount(); ++i) {
-    os << "quad #" << i << ":" << endl;
+  string groupIdsString = "";
+  int* groupIdData = groupIds.data();
+  std::cout << "groupIds.size():" << groupIds.size() << "\n";
+  for(std::ptrdiff_t i = groupIds.size() - 1; i > -1; --i){
+    std::cout << "i:" << i << "|";
+    groupIdsString = groupIdsString + std::to_string(groupIdData[i]) + (i > 0 ? "." : "");
+    std::cout << groupIdsString << std::endl;
+  }
+  // "Stroke,Group Id,Id,StyleId,Quad,P,x,y,Thickness"
+  string idString = std::to_string(stroke) + "," + groupIdsString + "," + std::to_string(getId()) + "," + std::to_string(m_imp->m_styleId);
+  //os << stroke << "," << groupId << "," << getId() << "," << m_imp->m_styleId << endl;
+  //os << "Control Points\n";
+  int i = 0;
+  for (i = 0; i < getChunkCount(); ++i) {
+    //os << "," << i;
     q = getChunk(i);
 
-    os << "    P0:" << q->getThickP0().x << ", " << q->getThickP0().y << ", "
+    os << idString << "," << i << ",0," << q->getThickP0().x << ", " << q->getThickP0().y << ", "
        << q->getThickP0().thick << endl;
-    os << "    P1:" << q->getThickP1().x << ", " << q->getThickP1().y << ", "
+    os << idString << "," << i << ",1," << q->getThickP1().x << ", " << q->getThickP1().y << ", "
        << q->getThickP1().thick << endl;
     assert(i == getChunkCount() - 1 ||
            (getChunk(i)->getThickP2() == getChunk(i + 1)->getThickP0()));
@@ -2283,9 +2295,101 @@ void TStroke::print(ostream &os) const {
 
   q = getChunk(getChunkCount() - 1);
 
-  os << "    P2:" << q->getThickP2().x << ", " << q->getThickP2().y << ", "
+  os << idString << "," << i-1 << ",2," << q->getThickP2().x << ", " << q->getThickP2().y << ", "
      << q->getThickP2().thick << endl;
 }
+
+//-----------------------------------------------------------------------------
+void TStroke::addChunkRows(QAbstractItemModel* model, int stroke, std::vector<int> groupIds) {
+  // m_imp->print(os);
+  const TThickQuadratic* q;
+
+  string groupIdsString = "";
+  int* groupIdData = groupIds.data();
+  std::cout << "TStroke::addChunkRows,groupIds.size():" << groupIds.size() << "\n";
+  for (std::ptrdiff_t i = groupIds.size() - 1; i > -1; --i) {
+    //std::cout << "i:" << i << "|";
+    groupIdsString = groupIdsString + std::to_string(groupIdData[i]) + (i > 0 ? "." : "");
+    //std::cout << groupIdsString << std::endl;
+  }
+  // "Stroke,Group Id,Id,StyleId,Quad,P,x,y,Thickness"
+  //string idString = std::to_string(stroke) + "," + groupIdsString + "," + std::to_string(getId()) + "," + std::to_string(m_imp->m_styleId);
+  //os << stroke << "," << groupId << "," << getId() << "," << m_imp->m_styleId << endl;
+  //os << "Control Points\n";
+  int i = 0;
+  for (i = 0; i < getChunkCount(); ++i) {
+    //os << "," << i;
+    q = getChunk(i);
+
+    //os << idString << "," << i << ",0," << q->getThickP0().x << ", " << q->getThickP0().y << ", "
+    //  << q->getThickP0().thick << endl;
+    //addVectorDataRow for P0
+    addVectorDataRow(
+        model, QString::fromStdString(std::to_string(stroke)), //stroke index
+        QString::fromStdString(groupIdsString), //group IDs
+        QString::fromStdString(std::to_string(getId())), //stroke ID
+        QString::fromStdString(std::to_string(m_imp->m_styleId)), //style ID
+        QString::fromStdString(std::to_string(i)), //quad
+        QString::fromStdString("0"), //Pn
+        QString::fromStdString(std::to_string(q->getThickP0().x)), //x
+        QString::fromStdString(std::to_string(q->getThickP0().y)), //y
+        QString::fromStdString(std::to_string(q->getThickP0().thick))); //thickness
+
+    //os << idString << "," << i << ",1," << q->getThickP1().x << ", " << q->getThickP1().y << ", "
+      //<< q->getThickP1().thick << endl;
+    //addVectorDataRow for P1
+    addVectorDataRow(
+      model, QString::fromStdString(std::to_string(stroke)), //stroke index
+      QString::fromStdString(groupIdsString), //group IDs
+      QString::fromStdString(std::to_string(getId())), //stroke ID
+      QString::fromStdString(std::to_string(m_imp->m_styleId)), //style ID
+      QString::fromStdString(std::to_string(i)), //quad
+      QString::fromStdString("1"), //Pn
+      QString::fromStdString(std::to_string(q->getThickP1().x)), //x
+      QString::fromStdString(std::to_string(q->getThickP1().y)), //y
+      QString::fromStdString(std::to_string(q->getThickP1().thick))); //thickness
+
+    assert(i == getChunkCount() - 1 ||
+      (getChunk(i)->getThickP2() == getChunk(i + 1)->getThickP0()));
+  }
+
+  q = getChunk(getChunkCount() - 1);
+
+  //os << idString << "," << i - 1 << ",2," << q->getThickP2().x << ", " << q->getThickP2().y << ", "
+  //  << q->getThickP2().thick << endl;
+
+  //addVectorDataRow for P2
+  addVectorDataRow(
+    model, QString::fromStdString(std::to_string(stroke)), //stroke index
+    QString::fromStdString(groupIdsString), //group IDs
+    QString::fromStdString(std::to_string(getId())), //stroke ID
+    QString::fromStdString(std::to_string(m_imp->m_styleId)), //style ID
+    QString::fromStdString(std::to_string(--i)), //quad
+    QString::fromStdString("2"), //Pn
+    QString::fromStdString(std::to_string(q->getThickP2().x)), //x
+    QString::fromStdString(std::to_string(q->getThickP2().y)), //y
+    QString::fromStdString(std::to_string(q->getThickP2().thick))); //thickness
+
+}
+
+//---------------------------------------------------------------------------------------------
+void addVectorDataRow(QAbstractItemModel* model, const QString& stroke, const QString& groupid,
+  const QString& id, const QString& styleid, const QString& quad,
+  const QString& p, const QString& x, const QString& y, const QString& thickness)
+{
+  model->insertRow(0);
+  model->setData(model->index(0, 0), stroke);
+  model->setData(model->index(0, 1), groupid);
+  model->setData(model->index(0, 2), id);
+  model->setData(model->index(0, 3), styleid);
+  model->setData(model->index(0, 4), quad);
+  model->setData(model->index(0, 5), p);
+  model->setData(model->index(0, 6), x);
+  model->setData(model->index(0, 7), y);
+  model->setData(model->index(0, 8), thickness);
+
+}
+
 
 //-----------------------------------------------------------------------------
 

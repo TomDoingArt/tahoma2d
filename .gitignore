@@ -37,3 +37,9 @@ ipch/
 
 #macOS
 .DS_Store
+*.bak
+*.originaltoonz/sources/Doxyfile
+toonz/sources/toonz/Doxyfile
+toonz/sources/toonz/CMakeLists.txt
+toonz/sources/CMakeLists.txt
+toonz/sources/toonzqt/CMakeLists.txt

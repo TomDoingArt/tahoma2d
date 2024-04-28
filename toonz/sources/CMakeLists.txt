@@ -1,12 +1,17 @@
-﻿cmake_policy(SET CMP0141 NEW)
+﻿cmake_minimum_required(VERSION 3.12)
+cmake_policy(SET CMP0141 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0141 NEW)
 
-cmake_minimum_required(VERSION 2.8.11)
+#cmake_minimum_required(VERSION 2.8.11)
 
 set(CMAKE_BUILD_TYPE_INIT Release)
 
 project(Tahoma2D)
 
+
+set(Qt5Script_DIR "C:/Qt/5.9.9/msvc2017_64/lib/cmake/Qt5Script")
+set(OpenCV_DIR "C:/Programs/opencv_4.5.1/build/x64/vc15/lib")
+set(Boost_INCLUDE_DIR "G:/QtCreatorProjects/tahoma2d/thirdparty/boost")
 
 #-----------------------------------------------------------------------------
 # Platform Specific Defaults
@@ -132,7 +137,9 @@ endif()
 message(STATUS "Thirdpary Library Search path:" ${THIRDPARTY_LIBS_HINTS})
 
 if(BUILD_ENV_MSVC)
-    set(QT_PATH "C:/Qt/5.15.2/msvc2019${PLATFORM2}" CACHE PATH "Qt installation directory")
+    set(QT_PATH "C:/Qt/5.9.9/msvc2017_64" CACHE PATH "Qt installation directory")
+    message("PLATFORM is:" ${PLATFORM2})
+    message("QT_PATH is:" ${QT_PATH})
     if(NOT EXISTS ${QT_PATH})
         message("Specify QT_PATH properly")
         return()

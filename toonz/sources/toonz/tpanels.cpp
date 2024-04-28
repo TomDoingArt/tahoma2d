@@ -23,6 +23,7 @@
 #include "previewfxmanager.h"
 #include "comboviewerpane.h"
 #include "historypane.h"
+#include "vectorlevelviewer.h"
 #include "cleanupsettingspane.h"
 #include "vectorguideddrawingpane.h"
 #include "expressionreferencemanager.h"
@@ -1541,6 +1542,30 @@ public:
 
 OpenFloatingPanel openHistoryPanelCommand(MI_OpenHistoryPanel, "HistoryPanel",
                                           QObject::tr("History"));
+//=============================================================================
+
+//=============================================================================
+// Vector Level Viewer
+//=============================================================================
+
+//-----------------------------------------------------------------------------
+
+class VectorLevelViewerPanelFactory final : public TPanelFactory {
+public:
+ VectorLevelViewerPanelFactory() : TPanelFactory("VectorLevelViewerPanel") {}
+ void initialize(TPanel *panel) override {
+   VectorLevelViewPane *vectorLevelViewer = new VectorLevelViewPane(panel);
+   panel->setWidget(vectorLevelViewer);
+   panel->setWindowTitle(QObject::tr("Vector Level Viewer"));
+   panel->setIsMaximizable(false);
+   panel->getTitleBar()->showTitleBar(TApp::instance()->getShowTitleBars());
+   connect(TApp::instance(), SIGNAL(showTitleBars(bool)), panel->getTitleBar(),
+           SLOT(showTitleBar(bool)));
+ }
+} vectorLevelViewerPanelFactory;
+
+OpenFloatingPanel openVectorLevelViewerPanelCommand(MI_OpenVectorLevelViewerPanel, "VectorLevelViewerPanel",
+                                         QObject::tr("Vector Level Viewer"));
 //=============================================================================
 
 //=============================================================================

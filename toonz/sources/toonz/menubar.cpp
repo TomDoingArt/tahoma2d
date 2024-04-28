@@ -669,6 +669,7 @@ void TopBar::loadMenubar() {
   addMenuItem(windowsMenu, MI_OpenComboViewer);
   addMenuItem(windowsMenu, MI_OpenLevelView);
   addMenuItem(windowsMenu, MI_OpenFileViewer);
+  addMenuItem(windowsMenu, MI_OpenVectorLevelViewerPanel);
   windowsMenu->addSeparator();
   addMenuItem(windowsMenu, MI_OpenXshView);
   addMenuItem(windowsMenu, MI_OpenTimelineView);

@@ -293,8 +293,8 @@ void TApp::setCurrentLevelStyleIndex(int index, bool forceUpdate) {
 //-----------------------------------------------------------------------------
 
 int TApp::getCurrentImageType() {
-  /*-- 現在のセルの種類に関係無く、Splineを選択中はベクタを編集できるようにする
-   * --*/
+  /*-- Allow vector editing while selecting a Spline,
+   * regardless of the current cell type. --*/
   if (getCurrentObject()->isSpline()) return TImage::VECTOR;
 
   TXshSimpleLevel *sl = 0;

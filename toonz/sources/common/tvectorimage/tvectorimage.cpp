@@ -1,3 +1,4 @@
+#include "..\..\include\tvectorimage.h"
 
 
 #include "tcurves.h"
@@ -16,6 +17,10 @@
 #include "tsimplecolorstyles.h"
 #include "tcomputeregions.h"
 
+#include <QDateTime>
+#include <QStandardItemModel>
+#include <QDebug>
+
 #include <memory>
 
 //=============================================================================
@@ -25,11 +30,11 @@ namespace {
 
 typedef std::set<int> DisabledStrokeStyles;
 
-// uso getDisabledStrokeStyleSet() invece che accedere direttamente alla
-// variabile per assicurarmi che il tutto funzioni anche quando viene
-// usato PRIMA del main (per iniziativa di un costruttore di una variabile
-// globale, p.es.).
-// per l'idioma: cfr. Modern C++ design, Andrei Alexandrescu, Addison Wesley
+// use getDisabledStrokeStyleSet() instead of accessing it directly
+// variable to make sure everything works when it comes
+// used BEFORE main (by initiative of a variable constructor
+// global, e.g.).
+// for the idiom: cf. Modern C++ design, Andrei Alexandrescu, Addison Wesley
 // 2001, p.133
 
 inline DisabledStrokeStyles &getDisabledStrokeStyleSet() {
@@ -399,12 +404,46 @@ else
       }
     }
 
-
 }
 */
+
 //-----------------------------------------------------------------------------
 
 UINT TVectorImage::getStrokeCount() const { return m_imp->m_strokes.size(); }
+
+//--------------------------------------------------------------------
+
+QStandardItemModel *TVectorImage::getStrokeListData(QObject *parent) {
+
+  QStandardItemModel *model = new QStandardItemModel(0, 9, parent);
+
+  model->setHeaderData(0, Qt::Horizontal, QObject::tr("Stroke"));
+  model->setHeaderData(1, Qt::Horizontal, QObject::tr("Group Id"));
+  model->setHeaderData(2, Qt::Horizontal, QObject::tr("Id"));
+  model->setHeaderData(3, Qt::Horizontal, QObject::tr("StyleId"));
+  model->setHeaderData(4, Qt::Horizontal, QObject::tr("Quad"));
+  model->setHeaderData(5, Qt::Horizontal, QObject::tr("P"));
+  model->setHeaderData(6, Qt::Horizontal, QObject::tr("x"));
+  model->setHeaderData(7, Qt::Horizontal, QObject::tr("y"));
+  model->setHeaderData(8, Qt::Horizontal, QObject::tr("Thickness"));
+
+    qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << "tvectorimage.printStrokes() called, stroke count:" << (UINT)m_imp->m_strokes.size();
+
+    //std::ofstream file("C:\\temp\\MyStrokesFromTVectorImage.txt");
+
+    //Header
+    //file << "Stroke,Group Id,Id,StyleId,Quad,P,x,y,Thickness," << QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toStdString() << std::endl;
+
+    for (int i = 0; i < (UINT)m_imp->m_strokes.size(); i++) {
+      //file << i << "," << std::to_string(*TVectorImage::Imp::m_strokes[i]->m_groupId.m_id.data());
+      //m_imp->m_strokes[i]->m_s->print(file, i, m_imp->m_strokes[i]->m_groupId.m_id);
+      // call to add vector chunk details
+      m_imp->m_strokes[i]->m_s->addChunkRows(model, i, m_imp->m_strokes[i]->m_groupId.m_id);
+    }
+    //file.close();
+
+  return model;
+}
 
 //-----------------------------------------------------------------------------
 /*
@@ -2004,7 +2043,6 @@ static void computeEdgeList(TStroke *newS, const std::list<TEdge *> &edgeList1,
     }
   }
 }
-
 //-----------------------------------------------------------------------------
 #ifdef _DEBUG
 

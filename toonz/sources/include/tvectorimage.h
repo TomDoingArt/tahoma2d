@@ -10,6 +10,7 @@
 // da togliere spostando cose in altri file!!
 #include "traster.h"
 #include "tstream.h"
+#include <QStandardItemModel>
 
 #include <set>
 
@@ -113,6 +114,12 @@ public:
 
   //! Return the strokes' count
   UINT getStrokeCount() const;
+
+  //! Get a list of stroke data
+  //QAbstractItemModel *getStrokeListData(std::vector<VIStroke*>& v, int size) const;
+  QStandardItemModel *getStrokeListData(QObject *parent);
+  //QStandardItemModel getStrokeListData(QObject* parent);
+  
   //! Get a \b TStroke stroke at index position
   TStroke *getStroke(UINT index) const;
   //! Get a \b VIStroke stroke at index position

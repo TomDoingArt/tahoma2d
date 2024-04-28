@@ -21,6 +21,9 @@
 
 #include <algorithm>
 
+#include <QDateTime>
+#include <QDebug>
+
 #if !defined(TNZ_LITTLE_ENDIAN)
 TNZ_LITTLE_ENDIAN undefined !!
 #endif
@@ -289,6 +292,12 @@ int VIList<T>::getPosOf(T *elem) {
 //-------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
+void printStrokes(vector<VIStroke*>& v, int size);
+
+//-----------------------------------------------------------------------------
+void printStrokes1(vector<VIStroke*>& v, int size);
+
+//-----------------------------------------------------------------------------
 
 #ifdef LEVO
 
@@ -424,8 +433,8 @@ static void cleanIntersectionMarks(const VIList<Intersection> &interList) {
   for (p = interList.first(); p; p = p->next())
     for (q = p->m_strokeList.first(); q; q = q->next()) {
       q->m_visited =
-          false;  // Ogni ramo della lista viene messo nella condizione
-                  // di poter essere visitato
+          false;  // Each branch of the list is put in the condition
+                  //  of being able to be visited.
 
       if (q->m_nextIntersection) {
         q->m_nextIntersection = 0;
@@ -458,8 +467,8 @@ static void cleanNextIntersection(const VIList<Intersection> &interList,
 
 void TVectorImage::Imp::eraseEdgeFromStroke(IntersectedStroke *is) {
   if (is->m_edge.m_index >= 0 &&
-      is->m_edge.m_index < m_strokes.size())  // elimino il puntatore all'edge
-                                              // nella lista della VIStroke
+      is->m_edge.m_index < m_strokes.size())  // I remove the pointer to the edge
+                                              // in the list of the VIStroke.
   {
     VIStroke *s;
     s = m_strokes[is->m_edge.m_index];
@@ -773,7 +782,7 @@ for (UINT ii=0; ii<branchCount; ii++)
     const IntersectionBranch &b = v[i];
     if (i == 0 || v[i].m_currInter != v[i - 1].m_currInter) {
       if (v[i].m_currInter >=
-          size)  // pezza per immagine corrotte...evito crash
+          size)  // Patches for corrupted images... avoid crashes.
       {
         break;
       }
@@ -2409,9 +2418,12 @@ void TVectorImage::Imp::initRegionsData() {
 //-----------------------------------------------------------------------------
 
 int TVectorImage::Imp::computeIntersections() {
+  qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << " tcomputeregions.cpp.computeIntersections()";
+  printStrokes(m_strokes, m_strokes.size());
   Intersection *p1;
   IntersectionData &intData = *m_intersectionData;
   int strokeSize            = (int)m_strokes.size();
+  //Imp& imp = *vi;
 
   findIntersections();
 
@@ -2425,8 +2437,34 @@ int TVectorImage::Imp::computeIntersections() {
     markDeadIntersections(intData.m_intList, p1);
 
   // checkInterList(intData.m_intList);
+  qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << " tcomputeregions.cpp.computeIntersections() strokeSize:" << strokeSize << ", intersections : " << intData.m_intList.size();
+  //std::cout << "tcomputeregions.cpp.computeIntersections() strokeSize:" + std::to_string(strokeSize) + ", intersections:" + std::to_string(intData.m_intList.size()) + "\n";
+  //std::ofstream file("C:\\temp\\MyStrokes.txt");
+
+  ////Header
+  //file << "Stroke,Group Id,Id,StyleId,Quad,P,x,y,Thickness" << endl;
+
+  //for (int i = 0; i < (int)m_strokes.size(); i++) {
+  //  //file << i << "," << std::to_string(*TVectorImage::Imp::m_strokes[i]->m_groupId.m_id.data());
+  //  TVectorImage::Imp::m_strokes[i]->m_s->print(file, i, *TVectorImage::Imp::m_strokes[i]->m_groupId.m_id.data());
+  //}
+  ////printStrokes(file);
+  //file.close();
+  
+  printStrokes(m_strokes, m_strokes.size());
+  // printStrokes1(m_strokes, m_strokes.size());
+ 
   return strokeSize;
 }
+
+//-----------------------------------------------------------------------------
+
+//void printStrokes(std::ofstream& os) {
+//  for (int i = 0; i < (int)TVectorImage::Imp::m_strokes.size(); i++) {
+//    os << "*****stroke #" << i << " *****";
+//    TVectorImage::Imp::m_strokes[i]->m_s->print(os);
+//  }
+//}
 
 //-----------------------------------------------------------------------------
 
@@ -2772,6 +2810,25 @@ void transferColors(const list<TEdge *> &oldList, const list<TEdge *> &newList,
                     bool isStrokeChanged, bool isFlipped, bool overwriteColor);
 
 //-----------------------------------------------------------------------------
+
+static void printStrokes(vector<VIStroke*>& v, int size){
+
+  qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << "printStrokes() called";
+
+  std::ofstream file("C:\\temp\\MyStrokes.txt");
+
+  //Header
+  file << "Stroke,Group Id,Id,StyleId,Quad,P,x,y,Thickness," << QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toStdString() << endl;
+
+  for (int i = 0; i < (UINT)size; i++) {
+    //file << i << "," << std::to_string(*TVectorImage::Imp::m_strokes[i]->m_groupId.m_id.data());
+    v[i]->m_s->print(file, i, v[i]->m_groupId.m_id);
+  }
+  //printStrokes(file);
+  file.close();
+}
+
+//-----------------------------------------------------------------------------
 static void printStrokes1(vector<VIStroke *> &v, int size) {
   UINT i = 0;
   ofstream of("C:\\temp\\strokes.txt");
@@ -2798,13 +2855,31 @@ static void printStrokes1(vector<VIStroke *> &v, int size) {
   }
 }
 
-//-----------------------------------------------------------------------------
-void printStrokes1(vector<VIStroke *> &v, int size);
-
 // void testHistory();
 
-// Trova le regioni in una TVectorImage
+// Find the regions in a TVectorImage
 int TVectorImage::Imp::computeRegions() {
+
+  // Get the current time as a time_point
+  // auto now = std::chrono::system_clock::now();
+
+  // Convert the time_point to a time_t object, which represents time in seconds
+  // auto now_c = std::chrono::system_clock::to_time_t(now);
+
+  // Optionally, convert to a more human-readable format
+  // std::cout << "Current time: " << std::ctime(&now_c);
+
+  // QDateTime currentDateTime = QDateTime::currentDateTimeUtc();
+
+  // Print the timestamp in seconds since the Unix epoch
+  // qDebug() << "Timestamp (in seconds):" << currentDateTime.toSecsSinceEpoch();
+
+  // Print in a human-readable format
+  qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << " tcomputeregions.cpp.computeRegions()";
+
+  // QDateTime::currentDateTimeUtc().toString(Qt::ISODate) <<
+
+  // std::cout << " tcomputeregions.cpp.computeRegions()\n";
 #ifdef NEW_REGION_FILL
   return 0;
 #endif
@@ -3076,6 +3151,9 @@ void TVectorImage::replaceStroke(int index, TStroke *newStroke) {
 void TVectorImage::Imp::moveStroke(int fromIndex, int moveBefore) {
   assert((int)m_strokes.size() > fromIndex);
   assert((int)m_strokes.size() >= moveBefore);
+
+  qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << " tcomputeregions.cpp.moveStroke()";
+  printStrokes(m_strokes, m_strokes.size());
 
 #ifdef _DEBUG
   checkIntersections();

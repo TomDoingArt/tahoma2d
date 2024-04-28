@@ -19,13 +19,13 @@ class VIStroke;
 
 class TGroupId {
 public:
-  std::vector<int> m_id;  // m_id[i-1] e' parent di m_id[i]
+  std::vector<int> m_id;  // m_id[i-1] is the parent of m_id[i]
+
   TGroupId() : m_id() {}
 
-  // ghost group sono i gruppi impliciti: tutti gli stroke che non fanno parte
-  // di nessun gruppo ma
-  // che stanno tra due gruppi fanno parte di un gruppo implicito. per
-  // convenzione un ghostGroup ha id<0
+  // Ghost groups are the implicit groups: all the strokes that do not belong
+  // to any group but that are between two groups are part of an implicit group.
+  // By convention a ghostGroup has an id<0
 
   TGroupId(TVectorImage *vi, bool isGhost);
 

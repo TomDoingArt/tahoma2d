@@ -2471,6 +2471,8 @@ void MainWindow::defineActions() {
                           "timeline");
   createMenuWindowsAction(MI_OpenComboViewer, QT_TR_NOOP("&ComboViewer"), "",
                           "comboviewer");
+  createMenuWindowsAction(MI_OpenVectorLevelViewerPanel, QT_TR_NOOP("Vector Level Viewer"),
+                          "", "vectorlevelviewer");
   createMenuWindowsAction(MI_OpenHistoryPanel, QT_TR_NOOP("&History"), "Ctrl+H",
                           "history");
   createMenuWindowsAction(MI_AudioRecording, QT_TR_NOOP("Record Audio"),

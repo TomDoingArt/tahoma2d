@@ -200,7 +200,7 @@ set(SOURCES
     plugin_param_view_interface.cpp
     plugin_ui_page_interface.cpp
     toonz_params.cpp
-	lutcalibrator.cpp
+    lutcalibrator.cpp
     insertfxpopup.cpp
 )
 
