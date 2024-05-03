@@ -23,7 +23,7 @@
 #include "previewfxmanager.h"
 #include "comboviewerpane.h"
 #include "historypane.h"
-#include "vectorlevelviewer.h"
+#include "vectorinspector.h"
 #include "cleanupsettingspane.h"
 #include "vectorguideddrawingpane.h"
 #include "expressionreferencemanager.h"
@@ -1545,27 +1545,27 @@ OpenFloatingPanel openHistoryPanelCommand(MI_OpenHistoryPanel, "HistoryPanel",
 //=============================================================================
 
 //=============================================================================
-// Vector Level Viewer
+// Vector Inspector
 //=============================================================================
 
 //-----------------------------------------------------------------------------
 
-class VectorLevelViewerPanelFactory final : public TPanelFactory {
+class VectorInspectorPanelFactory final : public TPanelFactory {
 public:
- VectorLevelViewerPanelFactory() : TPanelFactory("VectorLevelViewerPanel") {}
+ VectorInspectorPanelFactory() : TPanelFactory("VectorInspectorPanel") {}
  void initialize(TPanel *panel) override {
-   VectorLevelViewPane *vectorLevelViewer = new VectorLevelViewPane(panel);
-   panel->setWidget(vectorLevelViewer);
-   panel->setWindowTitle(QObject::tr("Vector Level Viewer"));
+   VectorInspectorPanel *vectorInspector = new VectorInspectorPanel(panel);
+   panel->setWidget(vectorInspector);
+   panel->setWindowTitle(QObject::tr("Vector Inspector"));
    panel->setIsMaximizable(false);
    panel->getTitleBar()->showTitleBar(TApp::instance()->getShowTitleBars());
    connect(TApp::instance(), SIGNAL(showTitleBars(bool)), panel->getTitleBar(),
            SLOT(showTitleBar(bool)));
  }
-} vectorLevelViewerPanelFactory;
+} vectorInspectorPanelFactory;
 
-OpenFloatingPanel openVectorLevelViewerPanelCommand(MI_OpenVectorLevelViewerPanel, "VectorLevelViewerPanel",
-                                         QObject::tr("Vector Level Viewer"));
+OpenFloatingPanel openVectorInspectorPanelCommand(MI_OpenVectorInspectorPanel, "VectorInspectorPanel",
+                                         QObject::tr("Vector Inspector"));
 //=============================================================================
 
 //=============================================================================

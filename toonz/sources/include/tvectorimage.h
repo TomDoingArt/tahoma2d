@@ -14,6 +14,8 @@
 
 #include <set>
 
+#include <QObject>
+
 #undef DVAPI
 #undef DVVAR
 #ifdef TVECTORIMAGE_EXPORTS
@@ -35,7 +37,6 @@ class TRegion;
 class TRegionId;
 class TColorStyle;
 class TVectorRenderData;
-class TRegionId;
 class TFilledRegionInf;
 namespace TThread {
 class Mutex;
@@ -56,6 +57,7 @@ class VIStroke;
     A vector image is a set of strokes and regions.
   \relates  TImage
 */
+
 class DVAPI TVectorImage final : public TImage {
   class Imp;
   int pickGroup(const TPointD &pos, bool onEnteredGroup) const;
@@ -406,6 +408,7 @@ existing stroke. this method is used for undoing removeEndpoints . */
 private:  // not implemented
   TVectorImage(const TVectorImage &);
   TVectorImage &operator=(const TVectorImage &);
+
 };
 
 DVAPI VIStroke *cloneVIStroke(VIStroke *vs);

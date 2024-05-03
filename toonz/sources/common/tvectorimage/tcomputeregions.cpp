@@ -2437,7 +2437,11 @@ int TVectorImage::Imp::computeIntersections() {
     markDeadIntersections(intData.m_intList, p1);
 
   // checkInterList(intData.m_intList);
-  qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << " tcomputeregions.cpp.computeIntersections() strokeSize:" << strokeSize << ", intersections : " << intData.m_intList.size();
+  qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << " tcomputeregions.cpp.computeIntersections() strokeSize:" << strokeSize << ", intersections: " << intData.m_intList.size() << ", intersected stroke array: " << intData.m_intersectedStrokeArray.size();
+  VIList<Intersection> intersectionList = intData.m_intList;
+  for (int i = 0; i < intData.m_intList.size(); i++) {
+    qDebug().noquote() << i << "<-i, y:" << intersectionList.getElemAt(i)->m_intersection.y << ", x:" << intersectionList.getElemAt(i)->m_intersection.x << ", m_numInter:" << intersectionList.getElemAt(i)->m_numInter;
+  }
   //std::cout << "tcomputeregions.cpp.computeIntersections() strokeSize:" + std::to_string(strokeSize) + ", intersections:" + std::to_string(intData.m_intList.size()) + "\n";
   //std::ofstream file("C:\\temp\\MyStrokes.txt");
 
@@ -2875,7 +2879,7 @@ int TVectorImage::Imp::computeRegions() {
   // qDebug() << "Timestamp (in seconds):" << currentDateTime.toSecsSinceEpoch();
 
   // Print in a human-readable format
-  qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << " tcomputeregions.cpp.computeRegions()";
+  qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << " tcomputeregions.cpp.computeRegions() ------------------------";
 
   // QDateTime::currentDateTimeUtc().toString(Qt::ISODate) <<
 
@@ -3126,6 +3130,8 @@ void TVectorImage::Imp::addRegion(TRegion *region) {
     }
   }
   m_regions.push_back(region);
+  qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << " tcomputeregions.cpp.addRegion() ------------------------";
+  region->print();
 }
 
 //-----------------------------------------------------------------------------

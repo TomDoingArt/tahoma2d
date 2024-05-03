@@ -87,6 +87,7 @@ void TSelectionHandle::enableCommand(std::string cmdId,
 
 void TSelectionHandle::notifySelectionChanged() {
   emit selectionChanged(m_selectionStack.back());
+  std::cout << " - - - - - - - - tselectionhandle.cpp::notifySelectionChanged()\n";
 }
 
 //-----------------------------------------------------------------------------

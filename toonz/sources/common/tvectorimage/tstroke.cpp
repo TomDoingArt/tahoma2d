@@ -2300,96 +2300,107 @@ void TStroke::print(ostream &os, int stroke, std::vector<int> groupIds) const {
 }
 
 //-----------------------------------------------------------------------------
-void TStroke::addChunkRows(QAbstractItemModel* model, int stroke, std::vector<int> groupIds) {
-  // m_imp->print(os);
-  const TThickQuadratic* q;
+void TStroke::addChunkRows(QAbstractItemModel *model, int stroke,
+                           std::vector<int> groupIds, int currentGroup) {
+  const TThickQuadratic *q;
+
+  QString strokeIndex =
+      QString::fromStdString(std::to_string(stroke));  // stroke index
+  QString strokeID =
+      QString::fromStdString(std::to_string(getId()));  // stroke ID
+  QString styleID =
+      QString::fromStdString(std::to_string(m_imp->m_styleId));  // style ID
+  QString selfLoop =
+      QString::fromStdString((m_imp->m_selfLoop)?"true":"false");  // self loop
 
   string groupIdsString = "";
-  int* groupIdData = groupIds.data();
-  std::cout << "TStroke::addChunkRows,groupIds.size():" << groupIds.size() << "\n";
+  int *groupIdData      = groupIds.data();
+  std::cout << "TStroke::addChunkRows,groupIds.size():" << groupIds.size()
+            << "\n";
   for (std::ptrdiff_t i = groupIds.size() - 1; i > -1; --i) {
-    //std::cout << "i:" << i << "|";
-    groupIdsString = groupIdsString + std::to_string(groupIdData[i]) + (i > 0 ? "." : "");
-    //std::cout << groupIdsString << std::endl;
+    if (currentGroup == groupIdData[i]) {
+      groupIdsString =
+        groupIdsString + "(" + std::to_string(groupIdData[i]) + (i > 0 ? "." : "") + ")";
+
+    } else {
+    groupIdsString =
+        groupIdsString + std::to_string(groupIdData[i]) + (i > 0 ? "." : "");
+    }
   }
-  // "Stroke,Group Id,Id,StyleId,Quad,P,x,y,Thickness"
-  //string idString = std::to_string(stroke) + "," + groupIdsString + "," + std::to_string(getId()) + "," + std::to_string(m_imp->m_styleId);
-  //os << stroke << "," << groupId << "," << getId() << "," << m_imp->m_styleId << endl;
-  //os << "Control Points\n";
+
+  QString groupIDs = QString::fromStdString(groupIdsString);  // group IDs
+
   int i = 0;
   for (i = 0; i < getChunkCount(); ++i) {
-    //os << "," << i;
     q = getChunk(i);
 
-    //os << idString << "," << i << ",0," << q->getThickP0().x << ", " << q->getThickP0().y << ", "
-    //  << q->getThickP0().thick << endl;
-    //addVectorDataRow for P0
+    // addVectorDataRow for P0
     addVectorDataRow(
-        model, QString::fromStdString(std::to_string(stroke)), //stroke index
-        QString::fromStdString(groupIdsString), //group IDs
-        QString::fromStdString(std::to_string(getId())), //stroke ID
-        QString::fromStdString(std::to_string(m_imp->m_styleId)), //style ID
-        QString::fromStdString(std::to_string(i)), //quad
-        QString::fromStdString("0"), //Pn
-        QString::fromStdString(std::to_string(q->getThickP0().x)), //x
-        QString::fromStdString(std::to_string(q->getThickP0().y)), //y
-        QString::fromStdString(std::to_string(q->getThickP0().thick))); //thickness
+        model, strokeIndex,                         // stroke index
+        groupIDs,                                   // group IDs
+        strokeID,                                   // stroke ID
+        styleID,                                    // style ID
+        selfLoop,                                   // self loop
+        QString::fromStdString(std::to_string(i)),  // quad
+        QString::fromStdString("0"),                // Pn
+        QString::fromStdString(std::to_string(q->getThickP0().x)),  // x
+        QString::fromStdString(std::to_string(q->getThickP0().y)),  // y
+        QString::fromStdString(
+            std::to_string(q->getThickP0().thick)));  // thickness
 
-    //os << idString << "," << i << ",1," << q->getThickP1().x << ", " << q->getThickP1().y << ", "
-      //<< q->getThickP1().thick << endl;
-    //addVectorDataRow for P1
+    // addVectorDataRow for P1
     addVectorDataRow(
-      model, QString::fromStdString(std::to_string(stroke)), //stroke index
-      QString::fromStdString(groupIdsString), //group IDs
-      QString::fromStdString(std::to_string(getId())), //stroke ID
-      QString::fromStdString(std::to_string(m_imp->m_styleId)), //style ID
-      QString::fromStdString(std::to_string(i)), //quad
-      QString::fromStdString("1"), //Pn
-      QString::fromStdString(std::to_string(q->getThickP1().x)), //x
-      QString::fromStdString(std::to_string(q->getThickP1().y)), //y
-      QString::fromStdString(std::to_string(q->getThickP1().thick))); //thickness
+        model, strokeIndex,                         // stroke index
+        groupIDs,                                   // group IDs
+        strokeID,                                   // stroke ID
+        styleID,                                    // style ID
+        selfLoop,                                   // self loop
+        QString::fromStdString(std::to_string(i)),  // quad
+        QString::fromStdString("1"),                // Pn
+        QString::fromStdString(std::to_string(q->getThickP1().x)),  // x
+        QString::fromStdString(std::to_string(q->getThickP1().y)),  // y
+        QString::fromStdString(
+            std::to_string(q->getThickP1().thick)));  // thickness
 
     assert(i == getChunkCount() - 1 ||
-      (getChunk(i)->getThickP2() == getChunk(i + 1)->getThickP0()));
+           (getChunk(i)->getThickP2() == getChunk(i + 1)->getThickP0()));
   }
 
   q = getChunk(getChunkCount() - 1);
 
-  //os << idString << "," << i - 1 << ",2," << q->getThickP2().x << ", " << q->getThickP2().y << ", "
-  //  << q->getThickP2().thick << endl;
-
-  //addVectorDataRow for P2
+  // addVectorDataRow for P2
   addVectorDataRow(
-    model, QString::fromStdString(std::to_string(stroke)), //stroke index
-    QString::fromStdString(groupIdsString), //group IDs
-    QString::fromStdString(std::to_string(getId())), //stroke ID
-    QString::fromStdString(std::to_string(m_imp->m_styleId)), //style ID
-    QString::fromStdString(std::to_string(--i)), //quad
-    QString::fromStdString("2"), //Pn
-    QString::fromStdString(std::to_string(q->getThickP2().x)), //x
-    QString::fromStdString(std::to_string(q->getThickP2().y)), //y
-    QString::fromStdString(std::to_string(q->getThickP2().thick))); //thickness
-
+      model, strokeIndex,                           // stroke index
+      groupIDs,                                     // group IDs
+      strokeID,                                     // stroke ID
+      styleID,                                      // style ID
+      selfLoop,                                     // self loop
+      QString::fromStdString(std::to_string(--i)),  // quad
+      QString::fromStdString("2"),                  // Pn
+      QString::fromStdString(std::to_string(q->getThickP2().x)),  // x
+      QString::fromStdString(std::to_string(q->getThickP2().y)),  // y
+      QString::fromStdString(
+          std::to_string(q->getThickP2().thick)));  // thickness
 }
 
 //---------------------------------------------------------------------------------------------
-void addVectorDataRow(QAbstractItemModel* model, const QString& stroke, const QString& groupid,
-  const QString& id, const QString& styleid, const QString& quad,
-  const QString& p, const QString& x, const QString& y, const QString& thickness)
-{
+void addVectorDataRow(QAbstractItemModel *model, const QString &stroke,
+                      const QString &groupid, const QString &id,
+                      const QString &styleid, const QString &selfLoop,
+                      const QString &quad, const QString &p, const QString &x,
+                      const QString &y, const QString &thickness) {
   model->insertRow(0);
   model->setData(model->index(0, 0), stroke);
   model->setData(model->index(0, 1), groupid);
   model->setData(model->index(0, 2), id);
   model->setData(model->index(0, 3), styleid);
-  model->setData(model->index(0, 4), quad);
-  model->setData(model->index(0, 5), p);
-  model->setData(model->index(0, 6), x);
-  model->setData(model->index(0, 7), y);
-  model->setData(model->index(0, 8), thickness);
-
+  model->setData(model->index(0, 4), selfLoop);
+  model->setData(model->index(0, 5), quad);
+  model->setData(model->index(0, 6), p);
+  model->setData(model->index(0, 7), x);
+  model->setData(model->index(0, 8), y);
+  model->setData(model->index(0, 9), thickness);
 }
-
 
 //-----------------------------------------------------------------------------
 

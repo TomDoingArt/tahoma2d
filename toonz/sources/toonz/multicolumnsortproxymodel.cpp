@@ -4,9 +4,9 @@ MultiColumnSortProxyModel::MultiColumnSortProxyModel(QObject *parent) : QSortFil
 }
 
 bool MultiColumnSortProxyModel::lessThan(const QModelIndex &left, const QModelIndex &right) const {
-    int primaryColumn = 0; //Stroke
-    int secondaryColumn = 4; //Quad
-    int tertiaryColumn = 5; //P
+    int primaryColumn = 0; // Stroke column on the VectorInspectorPanel
+    int secondaryColumn = 5; // Quad column on the VectorInspectorPanel
+    int tertiaryColumn = 6; // P column on the VectorInspectorPanel
 
     // A difference in the first column values?
     QModelIndex leftPrimaryIndex = left.sibling(left.row(), primaryColumn);

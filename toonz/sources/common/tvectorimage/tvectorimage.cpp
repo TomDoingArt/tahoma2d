@@ -414,33 +414,36 @@ UINT TVectorImage::getStrokeCount() const { return m_imp->m_strokes.size(); }
 //--------------------------------------------------------------------
 
 QStandardItemModel *TVectorImage::getStrokeListData(QObject *parent) {
-
   QStandardItemModel *model = new QStandardItemModel(0, 9, parent);
 
   model->setHeaderData(0, Qt::Horizontal, QObject::tr("Stroke"));
   model->setHeaderData(1, Qt::Horizontal, QObject::tr("Group Id"));
   model->setHeaderData(2, Qt::Horizontal, QObject::tr("Id"));
   model->setHeaderData(3, Qt::Horizontal, QObject::tr("StyleId"));
-  model->setHeaderData(4, Qt::Horizontal, QObject::tr("Quad"));
-  model->setHeaderData(5, Qt::Horizontal, QObject::tr("P"));
-  model->setHeaderData(6, Qt::Horizontal, QObject::tr("x"));
-  model->setHeaderData(7, Qt::Horizontal, QObject::tr("y"));
-  model->setHeaderData(8, Qt::Horizontal, QObject::tr("Thickness"));
+  model->setHeaderData(4, Qt::Horizontal, QObject::tr("Self Loop"));
+  model->setHeaderData(5, Qt::Horizontal, QObject::tr("Quad"));
+  model->setHeaderData(6, Qt::Horizontal, QObject::tr("P"));
+  model->setHeaderData(7, Qt::Horizontal, QObject::tr("x"));
+  model->setHeaderData(8, Qt::Horizontal, QObject::tr("y"));
+  model->setHeaderData(9, Qt::Horizontal, QObject::tr("Thickness"));
 
-    qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << "tvectorimage.printStrokes() called, stroke count:" << (UINT)m_imp->m_strokes.size();
+  qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate)
+                     << "tvectorimage.getStrokeListData() called, stroke count:"
+                     << (UINT)m_imp->m_strokes.size()
+                     << ", region count:" << (UINT)getRegionCount();
 
-    //std::ofstream file("C:\\temp\\MyStrokesFromTVectorImage.txt");
+  int currentGroup = 0;
+  if (m_imp->m_insideGroup.m_id.size() > 0) {
+    currentGroup = m_imp->m_insideGroup.m_id[0];
+  }
+  
+  std::cout << "+++++++++++++++ currentGroup:" << std::to_string(currentGroup) << std::endl;
 
-    //Header
-    //file << "Stroke,Group Id,Id,StyleId,Quad,P,x,y,Thickness," << QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toStdString() << std::endl;
-
-    for (int i = 0; i < (UINT)m_imp->m_strokes.size(); i++) {
-      //file << i << "," << std::to_string(*TVectorImage::Imp::m_strokes[i]->m_groupId.m_id.data());
-      //m_imp->m_strokes[i]->m_s->print(file, i, m_imp->m_strokes[i]->m_groupId.m_id);
-      // call to add vector chunk details
-      m_imp->m_strokes[i]->m_s->addChunkRows(model, i, m_imp->m_strokes[i]->m_groupId.m_id);
-    }
-    //file.close();
+  for (int i = 0; i < (UINT)m_imp->m_strokes.size(); i++) {
+    // add vector chunk details
+    m_imp->m_strokes[i]->m_s->addChunkRows(model, i,
+                                           m_imp->m_strokes[i]->m_groupId.m_id, currentGroup);
+  }
 
   return model;
 }
@@ -1109,11 +1112,14 @@ void TVectorImage::Imp::notifyChangedStrokes(
   checkIntersections();
 #endif
 
+  std::cout << " -=-=-=-=-=-=-=-=-=- TVectorImage::Imp::notifyChangedStrokes() 0 =-=-=-=-=-=-=-=-=-=-=-" << std::endl;
+
   assert(oldStrokeArray.empty() ||
          strokeIndexArray.size() == oldStrokeArray.size());
 
   if (!m_computedAlmostOnce && !m_notIntersectingStrokes) return;
 
+  std::cout << " -=-=-=-=-=-=-=-=-=- TVectorImage::Imp::notifyChangedStrokes() 1 =-=-=-=-=-=-=-=-=-=-=-" << std::endl;
   typedef std::list<TEdge *> EdgeList;
   std::vector<EdgeList> oldEdgeListArray(strokeIndexArray.size());
   int i;
@@ -1126,6 +1132,8 @@ void TVectorImage::Imp::notifyChangedStrokes(
       invalidateRegionPropAndBBox(m_regions[i]);
     return;
   }
+
+  std::cout << " -=-=-=-=-=-=-=-=-=- TVectorImage::Imp::notifyChangedStrokes() 2 =-=-=-=-=-=-=-=-=-=-=-" << std::endl;
 
   QMutexLocker sl(m_mutex);
   for (i = 0; i < (int)strokeIndexArray.size(); i++)  // ATTENZIONE! non si puo'
@@ -1166,6 +1174,7 @@ void TVectorImage::Imp::notifyChangedStrokes(
 #ifdef _DEBUG
   checkIntersections();
 #endif
+  std::cout << " -=-=-=-=-=-=-=-=-=- TVectorImage::Imp::notifyChangedStrokes() 1 =-=-=-=-=-=-=-=-=-=-=-" << std::endl;
 }
 
 //-----------------------------------------------------------------------------

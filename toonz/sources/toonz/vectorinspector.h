@@ -1,11 +1,12 @@
 #pragma once
 
-#ifndef VECTORLEVELVIEWER_H
-#define VECTORLEVELVIEWER_H
+#ifndef VECTORINSPECTOR_H
+#define VECTORINSPECTOR_H
 
 #include <QScrollArea>
 #include <QLabel>
 #include "multicolumnsortproxymodel.h"
+#include "toonzqt/tselectionhandle.h"
 
  QT_BEGIN_NAMESPACE
  class QAbstractItemModel;
@@ -18,15 +19,15 @@
  class QTreeView;
  QT_END_NAMESPACE
 
-class VectorLevelViewerFrame final : public QFrame {
+class VectorInspectorFrame final : public QFrame {
   Q_OBJECT
 
   QScrollArea *m_scrollArea;
 
 public:
-  VectorLevelViewerFrame(QScrollArea *parent   = 0,
+  VectorInspectorFrame(QScrollArea *parent   = 0,
                          Qt::WindowFlags flags = Qt::WindowFlags());
-  ~VectorLevelViewerFrame(){};
+  ~VectorInspectorFrame(){};
 
    void setSourceModel(QAbstractItemModel *model);
    void showContextMenu(const QPoint &pos);
@@ -36,7 +37,7 @@ private:
 
 };
 
-class VectorLevelViewPane final : public QWidget {
+class VectorInspectorPanel final : public QWidget {
   Q_OBJECT
 
   QLabel *m_field;
@@ -44,8 +45,8 @@ class VectorLevelViewPane final : public QWidget {
   QScrollArea *m_frameArea;
 
 public:
-  VectorLevelViewPane(QWidget *parent = 0, Qt::WindowFlags flags = Qt::WindowFlags());
-  ~VectorLevelViewPane(){};
+  VectorInspectorPanel(QWidget *parent = 0, Qt::WindowFlags flags = Qt::WindowFlags());
+  ~VectorInspectorPanel(){};
 
   void setSourceModel(QAbstractItemModel *model);
   void showContextMenu(const QPoint &pos);
@@ -55,6 +56,8 @@ public:
 
 public slots:
   void onLevelChanged();
+  void onSelectionSwitched(TSelection* selectionFrom, TSelection* selectionTo);
+  void onSelectionChanged(TSelection* selectionTo);
 
 protected:
   void showEvent(QShowEvent *) override;
@@ -80,4 +83,4 @@ private:
   QComboBox *filterColumnComboBox;
 };
 
-#endif  // VECTORLEVELVIEWER_H
+#endif  // VECTORINSPECTOR_H

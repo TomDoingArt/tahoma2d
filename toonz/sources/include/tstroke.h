@@ -322,7 +322,7 @@ Split a stroke at parameter t
   
   void print(std::ostream &os, int stroke, std::vector<int> groupIds) const;
 
-  void addChunkRows(QAbstractItemModel* model, int stroke, std::vector<int> groupIds);
+  void addChunkRows(QAbstractItemModel* model, int stroke, std::vector<int> groupIds, int currentGroup);
 
   // void print(std::ostream &os = std::cout) const;
   
@@ -460,7 +460,7 @@ public:
 
 void addVectorDataRow(QAbstractItemModel *model, const QString &stroke,
                       const QString &groupid, const QString &id,
-                      const QString &styleid, const QString &quad,
+                      const QString &styleid, const QString& selfLoop, const QString &quad,
                       const QString &p, const QString &x, const QString &y,
                       const QString &thickness);
 
