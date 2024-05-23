@@ -19,6 +19,7 @@
 #include "toonz/tobjecthandle.h"
 #include "toonz/stage2.h"
 #include "toonz/tstageobject.h"
+#include "toonz/preferences.h"
 
 #include "toonzqt/tselectionhandle.h"
 
@@ -303,7 +304,8 @@ void ControlPointEditorTool::drawControlPoint() {
   TPixel color_handle   = TPixel(96, 64, 201);
   int controlPointCount = m_controlPointEditorStroke.getControlPointCount();
 
-  double pix    = getPixelSize() * 2.0f;
+  double toolScale = Preferences::instance()->isToolScaled() ? 1.5 : 1;
+  double pix    = getPixelSize() * 2.0f * toolScale;
   double pix1_5 = 1.5 * pix, pix2 = pix + pix, pix2_5 = pix1_5 + pix,
          pix3 = pix2 + pix, pix3_5 = pix2_5 + pix, pix4 = pix3 + pix;
 
@@ -479,7 +481,7 @@ void ControlPointEditorTool::leftButtonDown(const TPointD &pos,
       }
     }
 
-    TVectorImageP vi = getImage(false);
+    TVectorImageP vi = TImageP(getImage(false));
     if (!vi) return;
     double dist2, t = 0;
     UINT index = -1;
@@ -510,7 +512,7 @@ void ControlPointEditorTool::leftButtonDown(const TPointD &pos,
       m_selection.selectNone();
     return;
   }
-  TVectorImageP vi = getImage(true);
+  TVectorImageP vi = TImageP(getImage(true));
   if (!vi) return;
 
   if (pointType == ControlPointEditorStroke::SPEED_IN ||
@@ -611,7 +613,7 @@ void ControlPointEditorTool::leftButtonDown(const TPointD &pos,
 
 void ControlPointEditorTool::rightButtonDown(const TPointD &pos,
                                              const TMouseEvent &) {
-  TVectorImageP vi = getImage(true);
+  TVectorImageP vi = TImageP(getImage(true));
   if (!vi) return;
   double maxDist  = 5 * getPixelSize();
   double maxDist2 = maxDist * maxDist;
@@ -639,7 +641,7 @@ void ControlPointEditorTool::leftButtonDoubleClick(const TPointD &pos,
   ControlPointEditorStroke::PointType pointType =
       m_controlPointEditorStroke.getPointTypeAt(pos, maxDist2, pointIndex);
 
-  TVectorImageP vi = getImage(true);
+  TVectorImageP vi = TImageP(getImage(true));
   if (!vi) return;
 
   if (pointType != ControlPointEditorStroke::SEGMENT) return;

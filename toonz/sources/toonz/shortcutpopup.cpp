@@ -119,15 +119,6 @@ void ShortcutViewer::keyPressEvent(QKeyEvent *event) {
       return;
     }
 
-    // Block the arrows
-    int ctl = modifiers | Qt::CTRL;
-    if ((modifiers == Qt::NoModifier) &&
-        (key == Qt::Key_Left || key == Qt::Key_Right || key == Qt::Key_Up ||
-         key == Qt::Key_Down)) {
-      event->ignore();
-      return;
-    }
-
     // If "Use Numpad and Tab keys for Switching Styles" option is activated,
     // then prevent to assign such keys
     if (Preferences::instance()->isUseNumpadForSwitchingStylesEnabled() &&
@@ -162,11 +153,29 @@ void ShortcutViewer::onEditingFinished() {
     for (int i = 0; i < seqCount; i++) {
       QKeySequence tmpKeys = QKeySequence(k1, (i >= 1 ? k2 : 0),
                                           (i >= 2 ? k3 : 0), (i >= 3 ? k4 : 0));
+
+      QString msg;
+      if (i == 0 &&
+          (tmpKeys.toString() == "Left" || tmpKeys.toString() == "Up" ||
+           tmpKeys.toString() == "Down" || tmpKeys.toString() == "Right")) {
+        msg = tr("Using '%1' arrow %2 may block navigation or movement "
+                 "operations in certain panels.\nUse anyway?")
+                  .arg(tmpKeys.toString())
+                  .arg(seqCount > 1 ? tr("to start of a shortcut sequence")
+                                    : tr("as a shortcut"));
+        int ret = DVGui::MsgBox(msg, tr("Yes"), tr("No"), 1);
+        activateWindow();
+        if (ret == 2 || ret == 0) {
+          setKeySequence(m_action->shortcut());
+          setFocus();
+          return;
+        }
+      }
+
       QAction *oldAction =
           cm->getActionFromShortcut(tmpKeys.toString().toStdString());
       if (oldAction == m_action) return;
       if (oldAction) {
-        QString msg;
         if (seqCount == (i + 1)) {
           msg = tr("'%1' is already assigned to '%2'\nAssign to '%3'?")
                     .arg(tmpKeys.toString())
@@ -424,11 +433,11 @@ ShortcutPopup::ShortcutPopup()
 
   QLineEdit *searchEdit = new QLineEdit(this);
 
-  m_topLayout->setMargin(5);
+  m_topLayout->setContentsMargins(5, 5, 5, 5);
   m_topLayout->setSpacing(8);
   {
     QHBoxLayout *searchLay = new QHBoxLayout();
-    searchLay->setMargin(0);
+    searchLay->setContentsMargins(0, 0, 0, 0);
     searchLay->setSpacing(5);
     {
       searchLay->addWidget(new QLabel(tr("Search:"), this), 0);
@@ -437,7 +446,7 @@ ShortcutPopup::ShortcutPopup()
     m_topLayout->addLayout(searchLay, 0);
 
     QVBoxLayout *listLay = new QVBoxLayout();
-    listLay->setMargin(0);
+    listLay->setContentsMargins(0, 0, 0, 0);
     listLay->setSpacing(0);
     {
       listLay->addWidget(noSearchResultLabel, 0,
@@ -447,7 +456,7 @@ ShortcutPopup::ShortcutPopup()
     m_topLayout->addLayout(listLay, 1);
 
     QHBoxLayout *bottomLayout = new QHBoxLayout();
-    bottomLayout->setMargin(0);
+    bottomLayout->setContentsMargins(0, 0, 0, 0);
     bottomLayout->setSpacing(1);
     {
       bottomLayout->addWidget(m_sViewer, 1);
@@ -456,7 +465,7 @@ ShortcutPopup::ShortcutPopup()
     m_topLayout->addLayout(bottomLayout, 0);
     m_topLayout->addSpacing(10);
     QHBoxLayout *presetLay = new QHBoxLayout();
-    presetLay->setMargin(5);
+    presetLay->setContentsMargins(5, 5, 5, 5);
     presetLay->setSpacing(5);
     {
       presetLay->addWidget(new QLabel(tr("Preset:"), this), 0);
@@ -469,7 +478,7 @@ ShortcutPopup::ShortcutPopup()
     m_topLayout->addWidget(presetBox, 0, Qt::AlignCenter);
     m_topLayout->addSpacing(10);
     QHBoxLayout *exportLay = new QHBoxLayout();
-    exportLay->setMargin(0);
+    exportLay->setContentsMargins(0, 0, 0, 0);
     exportLay->setSpacing(5);
     {
       exportLay->addWidget(m_exportButton, 0);

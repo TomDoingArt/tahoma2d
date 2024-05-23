@@ -313,7 +313,40 @@ void FilmstripFrames::mouseDoubleClickEvent(QMouseEvent *event) {
   } else {
     index = x2index(event->pos().x());
   }
-  select(index, ONLY_SELECT);  // ONLY_SELECT
+
+  int frameHeight = m_iconSize.height() + fs_frameSpacing + fs_iconMarginTop +
+                    fs_iconMarginBottom;
+  int frameWidth = m_iconSize.width() + fs_frameSpacing + fs_iconMarginLR +
+                   fs_leftMargin + fs_rightMargin;
+
+  bool clickedEmptySpace = false;
+
+  // If accessed after 1st frame on a Single Frame level
+  // Block movement so we can't create new images
+  TXshSimpleLevel *sl = getLevel();
+  if (index > 0 && sl) {
+    std::vector<TFrameId> fids;
+    sl->getFids(fids);
+    if (fids.empty() ||
+        (fids.size() == 1 && (fids[0].getNumber() == TFrameId::EMPTY_FRAME ||
+                              fids[0].getNumber() == TFrameId::NO_FRAME)))
+      return;
+
+    // If we overshoot last frame, move back to 1st empty spot
+    int emptyIndex = 0;
+    if (m_isVertical)
+      emptyIndex = y2index(fids.size() * frameHeight);
+    else
+      emptyIndex = x2index(fids.size() * frameWidth);
+
+    if (index >= emptyIndex) {
+      index             = emptyIndex;
+      clickedEmptySpace = true;
+    }
+  }
+
+  select(index,
+         clickedEmptySpace ? SELECT_EMPTY_SPACE : ONLY_SELECT);  // ONLY_SELECT
 }
 
 //-----------------------------------------------------------------------------
@@ -323,13 +356,14 @@ void FilmstripFrames::select(int index, SelectionMode mode) {
   bool outOfRange     = !sl || index < 0 || index >= sl->getFrameCount();
 
   TFrameId fid;
-  if (!outOfRange) fid = index2fid(index);
+  if (!outOfRange || SELECT_EMPTY_SPACE) fid = index2fid(index);
 
   switch (mode) {
   // select one frame only
   case ONLY_SELECT:
+  case SELECT_EMPTY_SPACE:
     m_selection->selectNone();
-    if (!outOfRange) m_selection->select(fid);
+    if (!outOfRange || SELECT_EMPTY_SPACE) m_selection->select(fid);
     break;
   case SIMPLE_SELECT:
     // Bail out if fid is already selected
@@ -860,6 +894,13 @@ void FilmstripFrames::mousePressEvent(QMouseEvent *event) {
        sl->getType() == TZI_XSHLEVEL);
   CommandManager::instance()->enable(MI_CanvasSize, isRasterLevel);
 
+  int frameHeight = m_iconSize.height() + fs_frameSpacing + fs_iconMarginTop +
+                    fs_iconMarginBottom;
+  int frameWidth = m_iconSize.width() + fs_frameSpacing + fs_iconMarginLR +
+                   fs_leftMargin + fs_rightMargin;
+
+  bool clickedEmptySpace = false;
+
   // If accessed after 1st frame on a Single Frame level
   // Block movement so we can't create new images
   if (index > 0) {
@@ -869,12 +910,20 @@ void FilmstripFrames::mousePressEvent(QMouseEvent *event) {
         (fids.size() == 1 && (fids[0].getNumber() == TFrameId::EMPTY_FRAME ||
                               fids[0].getNumber() == TFrameId::NO_FRAME)))
       return;
-  }
 
-  int frameHeight = m_iconSize.height() + fs_frameSpacing + fs_iconMarginTop +
-                    fs_iconMarginBottom;
-  int frameWidth = m_iconSize.width() + fs_frameSpacing + fs_iconMarginLR +
-                   fs_leftMargin + fs_rightMargin;
+    // If we overshoot last frame, move back to 1st empty spot
+    int emptyIndex = 0;
+    if (m_isVertical)
+      emptyIndex = y2index(fids.size() * frameHeight);
+    else
+      emptyIndex = x2index(fids.size() * frameWidth);
+
+    if (index >= emptyIndex) {
+      index             = emptyIndex;
+      fid               = fids.back().getNumber() + 1;
+      clickedEmptySpace = true;
+    }
+  }
 
   int i0;
   QPoint clickedPos;
@@ -888,6 +937,7 @@ void FilmstripFrames::mousePressEvent(QMouseEvent *event) {
     clickedPos = event->pos() - QPoint((index - i0) * frameWidth, 0);
   }
   actualIconClicked =
+      !clickedEmptySpace &&
       QRect(QPoint(fs_leftMargin + fs_iconMarginLR,
                    fs_frameSpacing / 2 +
                        fs_iconMarginTop)  //<- top-left position of the icon
@@ -950,6 +1000,7 @@ void FilmstripFrames::mousePressEvent(QMouseEvent *event) {
       TXshLevel *level = tapp->getCurrentLevel()->getLevel();
       level->getFids(fids);
 
+      if(clickedEmptySpace) fids.push_back(fid);
       tapp->getCurrentFrame()->setFrameIds(fids);
       tapp->getCurrentFrame()->setFid(fid);
 
@@ -968,7 +1019,7 @@ void FilmstripFrames::mousePressEvent(QMouseEvent *event) {
         m_indexForResetSelection = index;
       } else if (!actualIconClicked) {
         // this allows clicking the frame number to trigger an instant drag
-        select(index, ONLY_SELECT);
+        select(index, clickedEmptySpace ? SELECT_EMPTY_SPACE : ONLY_SELECT);
         m_dragDropArmed = true;
         m_pos           = event->pos();
       }
@@ -1115,7 +1166,7 @@ void FilmstripFrames::mouseMoveEvent(QMouseEvent *e) {
     } else
       stopAutoPanning();
     update();
-  } else if (e->buttons() & Qt::MidButton) {
+  } else if (e->buttons() & Qt::MiddleButton) {
     // scroll con il tasto centrale
     pos = e->globalPos();
     if (m_isVertical) {
@@ -1178,12 +1229,12 @@ void FilmstripFrames::keyPressEvent(QKeyEvent *event) {
   else if (event->key() == Qt::Key_PageDown) {
     if (m_isVertical) {
       int frameHeight   = m_iconSize.height();
-      int visibleHeight = visibleRegion().rects()[0].height();
+      int visibleHeight = visibleRegion().begin()[0].height();
       int visibleFrames = double(visibleHeight) / double(frameHeight);
       scroll(visibleFrames * frameHeight);
     } else {
       int frameWidth    = m_iconSize.width();
-      int visibleWidth  = visibleRegion().rects()[0].width();
+      int visibleWidth  = visibleRegion().begin()[0].width();
       int visibleFrames = double(visibleWidth) / double(frameWidth);
       scroll(visibleFrames * frameWidth);
     }
@@ -1191,12 +1242,12 @@ void FilmstripFrames::keyPressEvent(QKeyEvent *event) {
   } else if (event->key() == Qt::Key_PageUp) {
     if (m_isVertical) {
       int frameHeight   = m_iconSize.height();
-      int visibleHeight = visibleRegion().rects()[0].height();
+      int visibleHeight = visibleRegion().begin()[0].height();
       int visibleFrames = double(visibleHeight) / double(frameHeight);
       scroll(-visibleFrames * frameHeight);
     } else {
       int frameWidth    = m_iconSize.width();
-      int visibleWidth  = visibleRegion().rects()[0].width();
+      int visibleWidth  = visibleRegion().begin()[0].width();
       int visibleFrames = double(visibleWidth) / double(frameWidth);
       scroll(-visibleFrames * frameWidth);
     }
@@ -1213,7 +1264,7 @@ void FilmstripFrames::keyPressEvent(QKeyEvent *event) {
 //-----------------------------------------------------------------------------
 
 void FilmstripFrames::wheelEvent(QWheelEvent *event) {
-  scroll(-event->delta());
+  scroll(-event->angleDelta().y());
 }
 
 //-----------------------------------------------------------------------------
@@ -1553,7 +1604,7 @@ Filmstrip::Filmstrip(QWidget *parent, Qt::WindowFlags flags) : QWidget(parent) {
 
   // layout
   QVBoxLayout *mainLayout = new QVBoxLayout();
-  mainLayout->setMargin(0);
+  mainLayout->setContentsMargins(0, 0, 0, 0);
   mainLayout->setSpacing(0);
   {
     mainLayout->addWidget(m_chooseLevelCombo, 0);

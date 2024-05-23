@@ -87,6 +87,7 @@ protected:
   TPropertyGroup m_prop;
 
   TIntPairProperty m_thickness;
+  TDoubleProperty m_smooth;
   TBoolProperty m_pressure;
   TDoublePairProperty m_opacity;
   TDoubleProperty m_hardness;
@@ -101,13 +102,16 @@ protected:
   bool m_enabledPressure;
   int m_minCursorThick, m_maxCursorThick;
 
-  TPointD m_mousePos,  //!< Current mouse position, in world coordinates.
-      m_brushPos;      //!< World position the brush will be painted at.
+  TPointD m_mousePos,    //!< Current mouse position, in world coordinates.
+      m_brushPos,        //!< World position the brush will be painted at.
+      m_windowMousePos;  //!< Current mouse position, in window coordinates.
 
   TRasterP m_backUpRas;
   TRaster32P m_workRaster;
 
   TRect m_strokeRect, m_strokeSegmentRect, m_lastRect;
+
+  SmoothStroke m_smoothStroke;
 
   MyPaintToonzBrush *m_toonz_brush;
   QElapsedTimer m_brushTimer;
