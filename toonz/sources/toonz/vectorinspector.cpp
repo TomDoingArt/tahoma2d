@@ -14,7 +14,7 @@
 #include "toonz/txshcell.h"
 
 #include "tvectorimage.h"
-#include "toonz\tvectorimageutils.h"
+#include "toonz/tvectorimageutils.h"
 #include "tstroke.h"
 #include "toonz/tobjecthandle.h"
 #include "toonzqt/selection.h"
@@ -22,6 +22,7 @@
 #include "tools/tool.h"
 #include "tools/toolhandle.h"
 #include "tools/strokeselection.h"
+#include "../tnztools/vectorselectiontool.h"
 
 #include <QApplication>
 #include <QPainter>
@@ -37,557 +38,766 @@
 
 #include <QtWidgets>
 
-
-//QWidget m_panel;
-
-//void addVectorDataRow(QAbstractItemModel *model, const QString &stroke, const QString &groupid,
-//            const QString &id, const QString &styleid, const QString &quad,
-//            const QString &p, const QString &x, const QString &y, const QString &thickness)
-//{
-//   model->insertRow(0);
-//   model->setData(model->index(0, 0), stroke);
-//   model->setData(model->index(0, 1), groupid);
-//   model->setData(model->index(0, 2), id);
-//   model->setData(model->index(0, 3), styleid);
-//   model->setData(model->index(0, 4), quad);
-//   model->setData(model->index(0, 5), p);
-//   model->setData(model->index(0, 6), x);
-//   model->setData(model->index(0, 7), y);
-//   model->setData(model->index(0, 8), thickness);
-//
-//}
-
-//static void printStrokes(std::vector<VIStroke*>& v, int size){
-//
-//   qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << "printStrokes() called";
-//
-//   std::ofstream file("C:\\temp\\VectorInspectorStrokes.txt");
-//
-//   //Header
-//   file << "Stroke,Group Id,Id,StyleId,Quad,P,x,y,Thickness," << QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toStdString() << endl;
-//
-//   // pass in a Vector of strokes, and the size.
-//
-//   for (int i = 0; i < (UINT)size; i++) {
-//       //file << i << "," << std::to_string(*TVectorImage::Imp::m_strokes[i]->m_groupId.m_id.data());
-//       v[i]->m_s->print(file, i, v[i]->m_groupId.m_id);
-//       //VectorInspectorPanel::getVectorLineData(file, i, v[i]->m_groupId.m_id);
-//   }
-//   //printStrokes(file);
-//   file.close();
-//
-//}
-
-//QStandardItemModel *createVectorDataModel(QObject *parent)
-//{
-//   QStandardItemModel *model = new QStandardItemModel(0, 9, parent);
-//
-//   model->setHeaderData(0, Qt::Horizontal, QObject::tr("Stroke"));
-//   model->setHeaderData(1, Qt::Horizontal, QObject::tr("Group Id"));
-//   model->setHeaderData(2, Qt::Horizontal, QObject::tr("Id"));
-//   model->setHeaderData(3, Qt::Horizontal, QObject::tr("StyleId"));
-//   model->setHeaderData(4, Qt::Horizontal, QObject::tr("Quad"));
-//   model->setHeaderData(5, Qt::Horizontal, QObject::tr("P"));
-//   model->setHeaderData(6, Qt::Horizontal, QObject::tr("x"));
-//   model->setHeaderData(7, Qt::Horizontal, QObject::tr("y"));
-//   model->setHeaderData(8, Qt::Horizontal, QObject::tr("Thickness"));
-//
-//   // addVectorDataRow(model,"Stroke","Group Id","Id","StyleId","Quad","P","x","y","Thickness");
-//
-//   addVectorDataRow(model,"0","-2","7","4","0","0","84.0312","81.2656","0.505882");
-//   addVectorDataRow(model,"0","-2","7","4","0","1","92.6406","55.6172","1.29412");
-//   addVectorDataRow(model,"0","-2","7","4","1","0","86.6953","34.3828","1.84706");
-//   addVectorDataRow(model,"0","-2","7","4","1","1","77.8672","2.86719","2.67059");
-//   addVectorDataRow(model,"0","-2","7","4","2","0","49.2109","-14.6641","3");
-//   addVectorDataRow(model,"0","-2","7","4","2","1","28.2969","-26.5469","3");
-//   addVectorDataRow(model,"0","-2","7","4","3","0","4.83594","-33.25","3");
-//   addVectorDataRow(model,"0","-2","7","4","3","1","-18.6094","-39.9531","3");
-//   addVectorDataRow(model,"0","-2","7","4","4","0","-40.5625","-49.9453","3");
-//   addVectorDataRow(model,"0","-2","7","4","4","1","-69.7109","-64.3672","3");
-//   addVectorDataRow(model,"0","-2","7","4","4","2","-88.6875","-93.8125","3");
-//   addVectorDataRow(model,"1","-2","8","7","0","0","2.79688","51.4766","0.682353");
-//   addVectorDataRow(model,"1","-2","8","7","0","1","11.2812","52.1328","1.61176");
-//   addVectorDataRow(model,"1","-2","8","7","1","0","19.4219","48.25","1.77647");
-//   addVectorDataRow(model,"1","-2","8","7","1","1","27.5547","44.3672","1.95294");
-//   addVectorDataRow(model,"1","-2","8","7","2","0","35.3438","40.3438","2.05882");
-//   addVectorDataRow(model,"1","-2","8","7","2","1","79","19.8359","2.81176");
-//   addVectorDataRow(model,"1","-2","8","7","3","0","91.6953","-17.5703","3");
-//   addVectorDataRow(model,"1","-2","8","7","3","1","98.1328","-36.5312","3");
-//   addVectorDataRow(model,"1","-2","8","7","4","0","97.6484","-52.1875","3");
-//   addVectorDataRow(model,"1","-2","8","7","4","1","97.2344","-65.5781","3");
-//   addVectorDataRow(model,"1","-2","8","7","5","0","86.3125","-89.3516","3");
-//   addVectorDataRow(model,"1","-2","8","7","5","1","78.3047","-106.789","3");
-//   addVectorDataRow(model,"1","-2","8","7","5","2","68.0156","-111.047","3");
-//   addVectorDataRow(model,"2","4","9","5","0","0","21.7266","84.7578","0.505882");
-//   addVectorDataRow(model,"2","4","9","5","0","1","27.0781","63.4922","1.36471");
-//   addVectorDataRow(model,"2","4","9","5","1","0","26.5078","41.25","2.15294");
-//   addVectorDataRow(model,"2","4","9","5","1","1","25.9297","19.0078","2.94118");
-//   addVectorDataRow(model,"2","4","9","5","2","0","25.9688","-3.0625","3");
-//   addVectorDataRow(model,"2","4","9","5","2","1","27.1953","-31.3281","3");
-//   addVectorDataRow(model,"2","4","9","5","3","0","29.5234","-59.625","3");
-//   addVectorDataRow(model,"2","4","9","5","3","1","31.8516","-87.9141","3");
-//   addVectorDataRow(model,"2","4","9","5","3","2","29.7109","-116.07","3");
-//   addVectorDataRow(model,"3","4.3","10","6","0","0","133.359","-25.3047","0.505882");
-//   addVectorDataRow(model,"3","4.3","10","6","0","1","120.211","-24","0.541176");
-//   addVectorDataRow(model,"3","4.3","10","6","1","0","106.992","-23.8672","0.658824");
-//   addVectorDataRow(model,"3","4.3","10","6","1","1","93.7656","-23.7344","0.776471");
-//   addVectorDataRow(model,"3","4.3","10","6","2","0","80.5469","-23.6016","0.917647");
-//   addVectorDataRow(model,"3","4.3","10","6","2","1","57.4688","-23.1484","1.14118");
-//   addVectorDataRow(model,"3","4.3","10","6","3","0","34.3906","-22.5938","1.27059");
-//   addVectorDataRow(model,"3","4.3","10","6","3","1","11.3125","-22.0312","1.4");
-//   addVectorDataRow(model,"3","4.3","10","6","4","0","-11.7578","-22.1875","1.85882");
-//   addVectorDataRow(model,"3","4.3","10","6","4","1","-38.9688","-22.4531","2.43529");
-//   addVectorDataRow(model,"3","4.3","10","6","5","0","-59.75","-22","2.81176");
-//   addVectorDataRow(model,"3","4.3","10","6","5","1","-66.8906","-21.6328","2.88235");
-//   addVectorDataRow(model,"3","4.3","10","6","6","0","-74.0938","-21.0312","2.94118");
-//   addVectorDataRow(model,"3","4.3","10","6","6","1","-81.2969","-20.4219","3");
-//   addVectorDataRow(model,"3","4.3","10","6","6","2","-88.1797","-22.0938","3");
-//   addVectorDataRow(model,"4","4.3.2","11","3","0","0","-81.6562","90.9844","0.529412");
-//   addVectorDataRow(model,"4","4.3.2","11","3","0","1","-78.3906","71.5312","0.847059");
-//   addVectorDataRow(model,"4","4.3.2","11","3","1","0","-71.7188","61.2656","1.25882");
-//   addVectorDataRow(model,"4","4.3.2","11","3","1","1","-67.3672","54.8125","1.41176");
-//   addVectorDataRow(model,"4","4.3.2","11","3","2","0","-61.7109","49.375","1.56471");
-//   addVectorDataRow(model,"4","4.3.2","11","3","2","1","-56.0469","43.9375","1.70588");
-//   addVectorDataRow(model,"4","4.3.2","11","3","3","0","-50.3203","38.625","1.78824");
-//   addVectorDataRow(model,"4","4.3.2","11","3","3","1","-23.3203","12.7891","2.54118");
-//   addVectorDataRow(model,"4","4.3.2","11","3","4","0","21.1562","-14.5703","3");
-//   addVectorDataRow(model,"4","4.3.2","11","3","4","1","56.7422","-36.4609","3");
-//   addVectorDataRow(model,"4","4.3.2","11","3","5","0","79.6328","-58.0156","3");
-//   addVectorDataRow(model,"4","4.3.2","11","3","5","1","102.523","-79.5703","3");
-//   addVectorDataRow(model,"4","4.3.2","11","3","6","0","112.711","-100.789","3");
-//   addVectorDataRow(model,"4","4.3.2","11","3","6","1","116.82","-108.836","3");
-//   addVectorDataRow(model,"4","4.3.2","11","3","7","0","120.836","-117.031","3");
-//   addVectorDataRow(model,"4","4.3.2","11","3","7","1","124.852","-125.219","3");
-//   addVectorDataRow(model,"4","4.3.2","11","3","7","2","126.141","-134.086","3");
-//   addVectorDataRow(model,"5","4.3.2","12","8","0","0","54.6562","51.2891","0.505882");
-//   addVectorDataRow(model,"5","4.3.2","12","8","0","1","49.8203","46.875","1.10588");
-//   addVectorDataRow(model,"5","4.3.2","12","8","1","0","43.6875","44.0781","1.14118");
-//   addVectorDataRow(model,"5","4.3.2","12","8","1","1","37.5469","41.2812","1.17647");
-//   addVectorDataRow(model,"5","4.3.2","12","8","2","0","32.1094","37.5156","1.25882");
-//   addVectorDataRow(model,"5","4.3.2","12","8","2","1","26.9531","33.3984","1.4");
-//   addVectorDataRow(model,"5","4.3.2","12","8","3","0","23.1406","27.875","1.64706");
-//   addVectorDataRow(model,"5","4.3.2","12","8","3","1","19.3281","22.3594","1.88235");
-//   addVectorDataRow(model,"5","4.3.2","12","8","4","0","15.4609","16.9531","2.16471");
-//   addVectorDataRow(model,"5","4.3.2","12","8","4","1","0.265625","-3.16406","2.83529");
-//   addVectorDataRow(model,"5","4.3.2","12","8","5","0","-3.65625","-16.25","3");
-//   addVectorDataRow(model,"5","4.3.2","12","8","5","1","-8.15625","-31.25","3");
-//   addVectorDataRow(model,"5","4.3.2","12","8","6","0","-7.75781","-44.0547","3");
-//   addVectorDataRow(model,"5","4.3.2","12","8","6","1","-7.35938","-56.8594","3");
-//   addVectorDataRow(model,"5","4.3.2","12","8","7","0","-2.07031","-67.4688","3");
-//   addVectorDataRow(model,"5","4.3.2","12","8","7","1","6.29688","-84.2578","3");
-//   addVectorDataRow(model,"5","4.3.2","12","8","8","0","20.5859","-87.1875","3");
-//   addVectorDataRow(model,"5","4.3.2","12","8","8","1","23.1172","-87.6641","2.52941");
-//   addVectorDataRow(model,"5","4.3.2","12","8","9","0","33.2188","-91.3125","1.85882");
-//   addVectorDataRow(model,"5","4.3.2","12","8","9","1","43.4375","-95.0156","1.2");
-//   addVectorDataRow(model,"5","4.3.2","12","8","9","2","45.9766","-95.1797","0.564706");
-//
-//   return model;
-//}
-
-
 //-----------------------------------------------------------------------------
 VectorInspectorFrame::VectorInspectorFrame(QScrollArea *parent,
-                                              Qt::WindowFlags flags)
-   : QFrame(parent, flags), m_scrollArea(parent) {
- setObjectName("VectorInspectorFrame");
- setFrameStyle(QFrame::StyledPanel);
+                                           Qt::WindowFlags flags)
+    : QFrame(parent, flags), m_scrollArea(parent) {
+  setObjectName("VectorInspectorFrame");
+  setFrameStyle(QFrame::StyledPanel);
 
- setFocusPolicy(Qt::StrongFocus); /*-- Keyboard Tab Focus --*/
+  setFocusPolicy(Qt::StrongFocus); /*-- Keyboard Tab Focus --*/
 
- setFixedHeight(parentWidget()->height());
- setMinimumWidth(std::max(parentWidget()->width(),800));
+  setFixedHeight(parentWidget()->height());
+  setMinimumWidth(std::max(parentWidget()->width(), 800));
 }
 
 //------------------------------------------------------------------------------
 
-VectorInspectorPanel::VectorInspectorPanel(QWidget *parent, Qt::WindowFlags flags)
-   : QWidget(parent) {
+VectorInspectorPanel::VectorInspectorPanel(QWidget *parent,
+                                           Qt::WindowFlags flags)
+    : QWidget(parent) {
 
-  m_field =
-     new QLabel("I am a test value for the QLabel");
+  initiatedByVectorInspector = false;
+  initiatedBySelectTool = false;
+  strokeOrderChangedInProgress = false;
+  selectingRowsForStroke = false;
 
- m_field->setFixedHeight(16);
+  m_field = new QLabel("I am a test value for the QLabel");
 
- m_tempField = new QLabel("I am m_tempField");
+  m_field->setFixedHeight(16);
 
- setFocusProxy(m_field);
+  std::vector<int> m_selectedStrokeIndexes = {};
 
- proxyModel = new MultiColumnSortProxyModel;
+  setFocusProxy(m_field);
 
- proxyView = new QTreeView;
- proxyView->setRootIsDecorated(false);
- proxyView->setAlternatingRowColors(true);
- proxyView->setModel(proxyModel);
- proxyView->setSortingEnabled(true);
+  proxyModel = new MultiColumnSortProxyModel;
 
- proxyView->setSelectionMode(QAbstractItemView::ExtendedSelection);
- proxyView->setSelectionBehavior(QAbstractItemView::SelectItems);
+  proxyView = new QTreeView;
+  proxyView->setRootIsDecorated(false);
+  proxyView->setAlternatingRowColors(true);
+  proxyView->setModel(proxyModel);
+  proxyView->setSortingEnabled(true);
 
- proxyView->setContextMenuPolicy(Qt::CustomContextMenu);
- connect(proxyView, &QWidget::customContextMenuRequested, this, &VectorInspectorPanel::showContextMenu);
+  proxyView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+  proxyView->setSelectionBehavior(QAbstractItemView::SelectRows);
 
- sortCaseSensitivityCheckBox = new QCheckBox(tr("Case sensitive sorting"));
- filterCaseSensitivityCheckBox = new QCheckBox(tr("Case sensitive filter"));
+  proxyView->setContextMenuPolicy(Qt::CustomContextMenu);
+  connect(proxyView, &QWidget::customContextMenuRequested, this,
+          &VectorInspectorPanel::showContextMenu);
 
- filterPatternLineEdit = new QLineEdit;
- filterPatternLabel = new QLabel(tr("&Filter pattern (example 0|1):"));
- filterPatternLabel->setBuddy(filterPatternLineEdit);
+//  sortCaseSensitivityCheckBox   = new QCheckBox(tr("Case sensitive sorting"));
+//  filterCaseSensitivityCheckBox = new QCheckBox(tr("Case sensitive filter"));
 
- filterSyntaxComboBox = new QComboBox;
- filterSyntaxComboBox->addItem(tr("Regular expression"), QRegExp::RegExp);
- filterSyntaxComboBox->addItem(tr("Wildcard"), QRegExp::Wildcard);
- filterSyntaxComboBox->addItem(tr("Fixed string"), QRegExp::FixedString);
- filterSyntaxLabel = new QLabel(tr("Filter &syntax:"));
- filterSyntaxLabel->setBuddy(filterSyntaxComboBox);
+  filterPatternLineEdit = new QLineEdit;
+  filterPatternLabel    = new QLabel(tr("&Filter pattern (example 0|1):"));
+  filterPatternLabel->setBuddy(filterPatternLineEdit);
 
- filterColumnComboBox = new QComboBox;
- filterColumnComboBox->addItem(tr("Stroke"));
- filterColumnComboBox->addItem(tr("Group Id"));
- filterColumnComboBox->addItem(tr("Id"));
- filterColumnComboBox->addItem(tr("StyleId"));
- filterColumnComboBox->addItem(tr("Self Loop"));
- filterColumnComboBox->addItem(tr("Quad"));
- filterColumnComboBox->addItem(tr("P"));
- filterColumnComboBox->addItem(tr("x"));
- filterColumnComboBox->addItem(tr("y"));
- filterColumnComboBox->addItem(tr("Thickness"));
+  filterSyntaxComboBox = new QComboBox;
+  filterSyntaxComboBox->addItem(tr("Regular expression"), QRegExp::RegExp);
+  filterSyntaxComboBox->addItem(tr("Wildcard"), QRegExp::Wildcard);
+  filterSyntaxComboBox->addItem(tr("Fixed string"), QRegExp::FixedString);
+  filterSyntaxLabel = new QLabel(tr("Filter &syntax:"));
+  filterSyntaxLabel->setBuddy(filterSyntaxComboBox);
 
- filterColumnLabel = new QLabel(tr("Filter &column:"));
- filterColumnLabel->setBuddy(filterColumnComboBox);
+  filterColumnComboBox = new QComboBox;
+  filterColumnComboBox->addItem(tr("#"));
+  filterColumnComboBox->addItem(tr("Group Id"));
+  filterColumnComboBox->addItem(tr("Id"));
+  filterColumnComboBox->addItem(tr("StyleId"));
+  filterColumnComboBox->addItem(tr("Self Loop"));
+  filterColumnComboBox->addItem(tr("Quad"));
+  filterColumnComboBox->addItem(tr("P"));
+  filterColumnComboBox->addItem(tr("x"));
+  filterColumnComboBox->addItem(tr("y"));
+  filterColumnComboBox->addItem(tr("Thickness"));
 
- connect(filterPatternLineEdit, &QLineEdit::textChanged,
-         this, &VectorInspectorPanel::filterRegExpChanged);
- connect(filterSyntaxComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-         this, &VectorInspectorPanel::filterRegExpChanged);
- connect(filterColumnComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-         this, &VectorInspectorPanel::filterColumnChanged);
- connect(filterCaseSensitivityCheckBox, &QAbstractButton::toggled,
-         this, &VectorInspectorPanel::filterRegExpChanged);
- connect(sortCaseSensitivityCheckBox, &QAbstractButton::toggled,
-         this, &VectorInspectorPanel::sortChanged);
+  filterColumnLabel = new QLabel(tr("Filter &column:"));
+  filterColumnLabel->setBuddy(filterColumnComboBox);
 
- proxyGroupBox = new QGroupBox();
+  connect(filterPatternLineEdit, &QLineEdit::textChanged, this,
+          &VectorInspectorPanel::filterRegExpChanged);
+  connect(filterSyntaxComboBox,
+          QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+          &VectorInspectorPanel::filterRegExpChanged);
+  connect(filterColumnComboBox,
+          QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+          &VectorInspectorPanel::filterColumnChanged);
+  //connect(filterCaseSensitivityCheckBox, &QAbstractButton::toggled, this,
+  //        &VectorInspectorPanel::filterRegExpChanged);
+  //connect(sortCaseSensitivityCheckBox, &QAbstractButton::toggled, this,
+  //        &VectorInspectorPanel::sortChanged);
 
- QGridLayout *proxyLayout = new QGridLayout;
- proxyLayout->addWidget(proxyView, 0, 0, 1, 3);
- proxyLayout->addWidget(filterPatternLabel, 1, 0);
- proxyLayout->addWidget(filterPatternLineEdit, 1, 1, 1, 2);
- proxyLayout->addWidget(filterSyntaxLabel, 2, 0);
- proxyLayout->addWidget(filterSyntaxComboBox, 2, 1, 1, 2);
- proxyLayout->addWidget(filterColumnLabel, 3, 0);
- proxyLayout->addWidget(filterColumnComboBox, 3, 1, 1, 2);
- proxyLayout->addWidget(filterCaseSensitivityCheckBox, 4, 0, 1, 2);
- proxyLayout->addWidget(sortCaseSensitivityCheckBox, 4, 2);
- proxyGroupBox->setLayout(proxyLayout);
+  connect(proxyView, &QTreeView::clicked, this, &VectorInspectorPanel::onSelectedStroke);
 
- QVBoxLayout *mainLayout = new QVBoxLayout;
+  connect(proxyView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &VectorInspectorPanel::onVectorInspectorSelectionChanged);
 
- //mainLayout->addWidget(m_frameArea, 800);
- mainLayout->addWidget(m_field);
- mainLayout->addWidget(m_tempField);
- mainLayout->addWidget(proxyGroupBox);
+  proxyGroupBox = new QGroupBox();
+  proxyGroupBox->setMinimumSize(600, 400);
 
- setLayout(mainLayout);
+  QGridLayout *proxyLayout = new QGridLayout;
+  proxyLayout->addWidget(proxyView, 0, 0, 1, 3);
+  proxyLayout->addWidget(filterPatternLabel, 1, 0);
+  proxyLayout->addWidget(filterPatternLineEdit, 1, 1, 1, 2);
+  proxyLayout->addWidget(filterSyntaxLabel, 2, 0);
+  proxyLayout->addWidget(filterSyntaxComboBox, 2, 1, 1, 2);
+  proxyLayout->addWidget(filterColumnLabel, 3, 0);
+  proxyLayout->addWidget(filterColumnComboBox, 3, 1, 1, 2);
+  //proxyLayout->addWidget(filterCaseSensitivityCheckBox, 4, 0, 1, 2);
+  //proxyLayout->addWidget(sortCaseSensitivityCheckBox, 4, 2);
+  proxyGroupBox->setLayout(proxyLayout);
 
- setWindowTitle(tr("Basic Sort/Filter Model"));
- resize(500, 450);
+  QVBoxLayout *mainLayout = new QVBoxLayout;
 
- proxyView->sortByColumn(0, Qt::AscendingOrder);
- filterColumnComboBox->setCurrentIndex(6); // position 6 for the 'P' column of the Vector Inspector QTreeView
- filterPatternLineEdit->setText("2"); //set default filter here, like: "0|1" to filter on value 0 or 1
- filterCaseSensitivityCheckBox->setChecked(true);
- sortCaseSensitivityCheckBox->setChecked(true);
+  mainLayout->addWidget(m_field);
+  mainLayout->addWidget(proxyGroupBox);
 
+  setLayout(mainLayout);
+
+  setWindowTitle(tr("Basic Sort/Filter Model"));
+
+  proxyView->sortByColumn(0, Qt::AscendingOrder);
+  filterColumnComboBox->setCurrentIndex(
+      6);  // position 6 for the 'P' column of the Vector Inspector QTreeView
+  filterPatternLineEdit->setText(
+      "2");  // set default filter here, like: "0|1" to filter on value 0 or 1
+  //filterCaseSensitivityCheckBox->setChecked(true);
+  //sortCaseSensitivityCheckBox->setChecked(true);
 }
 
 //-----------------------------------------------------------------------------
 
-void VectorInspectorPanel::onLevelChanged() {
-   // Get the current UTC date and time
- QDateTime utcNow = QDateTime::currentDateTimeUtc();
+void VectorInspectorPanel::onLevelSwitched() {
+  // Get the current UTC date and time
+  QDateTime utcNow = QDateTime::currentDateTimeUtc();
 
-   // Get timestamp in milliseconds
- qint64 timestampMilliseconds = utcNow.toMSecsSinceEpoch();
+  // Get timestamp in milliseconds
+  qint64 timestampMilliseconds = utcNow.toMSecsSinceEpoch();
 
- std::string levelType = "";
+  std::string levelType = "";
 
- switch (TApp::instance()->getCurrentImageType()) {
- case TImage::MESH:
-     levelType = "Mesh";
-     break;
- case TImage::VECTOR:
-     levelType = "Vector";
-     break;
- case TImage::TOONZ_RASTER:
-     levelType = "ToonzRaster";
-     break;
- case TImage::RASTER:
-     levelType = "Raster";
-     break;
- default:
-     levelType = "Unknown";
- }
+  switch (TApp::instance()->getCurrentImageType()) {
+  case TImage::MESH:
+    levelType = "Mesh";
+    break;
+  case TImage::VECTOR:
+    levelType = "Vector";
+    break;
+  case TImage::TOONZ_RASTER:
+    levelType = "ToonzRaster";
+    break;
+  case TImage::RASTER:
+    levelType = "Raster";
+    break;
+  default:
+    levelType = "Unknown";
+  }
 
-  // TXshLevel currentLevel = TApp::instance()->getCurrentLevel()->getLevel();
+  //std::cout << "---------VectorInspectorPanel onLevelSwitched.levelType:" << levelType << std::endl;
 
- std::cout << "---------onLevelChanged.levelType:" << levelType << std::endl;
- 
- if (levelType == "Vector") {
-   // ----------------------- the new stuff ----------------------------------
+  if (levelType == "Vector") {
+    // ----------------------- the new stuff ----------------------------------
 
-   TApp *app = TApp::instance();
+    // to prevent multiple connections, try to disconnect first in case
+    // already connected previously.
 
-   TXshLevelHandle *currentLevel = app->getCurrentLevel();
+    QObject::disconnect(TApp::instance()->getCurrentSelection(), &TSelectionHandle::selectionChanged, this, &VectorInspectorPanel::onSelectionChanged);
+    QObject::connect(TApp::instance()->getCurrentSelection(), &TSelectionHandle::selectionChanged, this, &VectorInspectorPanel::onSelectionChanged);
 
-   TFrameHandle *currentFrame = app->getCurrentFrame();
+    QObject::disconnect(TApp::instance()->getCurrentTool(), &ToolHandle::toolSwitched,
+               this, &VectorInspectorPanel::onToolSwitched); 
+    QObject::connect(TApp::instance()->getCurrentTool(), &ToolHandle::toolSwitched, this,
+            &VectorInspectorPanel::onToolSwitched);
 
-   TColumnHandle *currentColumn = app->getCurrentColumn();
+    QObject::disconnect(TApp::instance()->getCurrentScene(), &TSceneHandle::sceneSwitched,
+      this, &VectorInspectorPanel::onSceneChanged);
+    QObject::connect(TApp::instance()->getCurrentScene(), &TSceneHandle::sceneSwitched,
+            this, &VectorInspectorPanel::onSceneChanged);
 
-   int frameIndex = currentFrame->getFrameIndex();
+    QObject::connect(TApp::instance()->getCurrentScene(), &TSceneHandle::sceneChanged,
+      this, &VectorInspectorPanel::onSceneChanged);
+    QObject::connect(TApp::instance()->getCurrentScene(), &TSceneHandle::sceneChanged,
+            this, &VectorInspectorPanel::onSceneChanged);
 
-   // ToDo: Add a signal and slot for when the frame changes in order to update
-   // this info.
+    TApp *app = TApp::instance();
 
-   TXshSimpleLevel *currentSimpleLevel = currentLevel->getSimpleLevel();
+    TXshLevelHandle *currentLevel = app->getCurrentLevel();
 
-   // ToDo - get current cell from xsheet.
+    TFrameHandle *currentFrame = app->getCurrentFrame();
 
-   int row = currentFrame->getFrame();
-   int col = currentColumn->getColumnIndex();
+    TColumnHandle *currentColumn = app->getCurrentColumn();
 
-   std::cout << "row:" << row << ", column:" << col << std::endl;
+    int frameIndex = currentFrame->getFrameIndex();
 
-   TXsheet *xsheet = app->getCurrentXsheet()->getXsheet();
+    TXshSimpleLevel *currentSimpleLevel = currentLevel->getSimpleLevel();
 
-   const TXshCell cell = xsheet->getCell(row, col);
+    int row = currentFrame->getFrame();
+    int col = currentColumn->getColumnIndex();
 
-   // ToDo - get the image eposed at that cell.
-   TVectorImageP vectorImage = cell.getImage(false);
+    //std::cout << "row:" << row << ", column:" << col << std::endl;
 
-   //std::cout << "imp:" << vectorImage.m_imp.get() << std::endl; vectorImage.m_imp;
+    TXsheet *xsheet = app->getCurrentXsheet()->getXsheet();
 
-   // TVectorImageP* vectorImage = currentLevel->getFrame(frameIndex);
-   // TVectorImageP vectorImage = cell.getImage(false);
-   
-   //TVectorImageP vectorImage = cell.getImage(false);
+    const TXshCell cell = xsheet->getCell(row, col);
 
-   // TVectorImageP *vectorImage = currentSimpleLevel->getFrame(frameIndex);
+    TVectorImageP vectorImage = cell.getImage(false);
+    m_vectorImage             = vectorImage.getPointer();
 
-   // UINT fillStyle = vectorImage->getFillData(intersectionBranch);
+    UINT strokeCount = vectorImage->getStrokeCount();
 
-   // Cannot access <TVectorImage::Imp> outside of the class. Consider adding methods to TVectorImage if access to information is needed.
-   //std::unique_ptr<TVectorImage::Imp>
-   //std::unique_ptr<TVectorImage::Imp::Imp> m_impintersectionData = <TVectorImage> vectorImage->m_imp  m_intersectionData;
+    if (vectorImage) {
+      //std::cout << "+++ --- +++ onLevelSwitched() stroke count:" << strokeCount
+      //          << " = " << m_vectorImage->getStrokeCount() << std::endl;
 
-   // std::vector<VIStroke*> m_strokes = vectorImage->getStrokeCount();
-   //UINT strokeCount = vectorImage.getStrokeCount();
-   UINT strokeCount = vectorImage->getStrokeCount();
+      QObject::disconnect(m_vectorImage, &TVectorImage::changedStrokes, this,
+                          &VectorInspectorPanel::onChangedStrokes);
 
-   std::cout << "TVectorImageP Stroke count:" << strokeCount << ", getType():" << vectorImage->getType() << std::endl;
+      QObject::connect(m_vectorImage, &TVectorImage::changedStrokes, this,
+                       &VectorInspectorPanel::onChangedStrokes);
 
-   //std::vector <VIStroke*> strokes = vectorImage;
+      //std::cout << "+++ --- +++ connected changedStrokes() event to vectorImage"
+      //          << std::endl;
 
-   //VIStroke m_strokes = vectorImage.getVIStroke(0);
+      QObject::disconnect(m_vectorImage, &TVectorImage::enteredGroup, this,
+                          &VectorInspectorPanel::onEnteredGroup);
 
-   // printStrokes(m_strokes, m_strokes.size());
-   //vectorImage.getStrokeListData();
+      QObject::connect(m_vectorImage, &TVectorImage::enteredGroup, this,
+                       &VectorInspectorPanel::onEnteredGroup);
 
-   std::cout << "------------------ calling getStrokeListData for strokeCount:" << strokeCount << std::endl;
-   QStandardItemModel* model = vectorImage->getStrokeListData(parentWidget());
-   setSourceModel(model);
-   proxyModel->invalidate();
+      //std::cout << "+++ --- +++ connected enteredGroup() event to vectorImage"
+      //          << std::endl;
 
-   m_tempField->setText(QString(" app exists: ") + (app != nullptr ? "true" : "false") +
-     QString("; currentLevel exists: ") + (currentLevel != nullptr ? "true" : "false") +
-     QString("; currentFrame exists: ") + (currentFrame != nullptr ? "true" : "false") +
-     QString("; frameIndex: ") + QString::fromStdString(std::to_string(frameIndex)) +
-     QString("; currentSimpleLevel exists: ") + (currentSimpleLevel != nullptr ? "true" : "false") +
-     QString("; strokeCount: ") + QString::fromStdString(std::to_string(strokeCount)) //+
-     //QString("; m_imp exists: ") + (cell.getImage(false).m_imp != nullptr ? "true" : "false")
-   );
+      QObject::disconnect(m_vectorImage, &TVectorImage::exitedGroup, this,
+                          &VectorInspectorPanel::onExitedGroup);
 
-   m_tempField->adjustSize();
+      QObject::connect(m_vectorImage, &TVectorImage::exitedGroup, this,
+                       &VectorInspectorPanel::onExitedGroup);
 
- }
+      //std::cout << "+++ --- +++ connected exitedGroup() event to vectorImage"
+      //          << std::endl;
 
- qDebug() << "ISODate enum value:" << utcNow.toString(Qt::ISODate)
-          << "Level type:" << QString::fromStdString(levelType);
+      QObject::disconnect(m_vectorImage, &TVectorImage::changedStrokeOrder,
+                          this, &VectorInspectorPanel::onStrokeOrderChanged);
 
- m_field->setText(utcNow.toString(Qt::ISODate) +
-                  " Level type:" + QString::fromStdString(levelType));
+      QObject::connect(m_vectorImage, &TVectorImage::changedStrokeOrder, this,
+                       &VectorInspectorPanel::onStrokeOrderChanged);
 
- m_field->adjustSize();
+      QObject::disconnect(m_vectorImage, &TVectorImage::selectedAllStrokes,
+                          this, &VectorInspectorPanel::onSelectedAllStrokes);
 
- filterColumnComboBox->setWindowTitle(utcNow.toString(Qt::ISODate) +
-               " Level type:" + QString::fromStdString(levelType));
+      QObject::connect(m_vectorImage, &TVectorImage::selectedAllStrokes, this,
+                       &VectorInspectorPanel::onSelectedAllStrokes);
 
- update();
-}
+      //std::cout
+      //    << "+++ --- +++ connected to vectorImage changedStrokeOrder event"
+      //    << std::endl;
 
-//-------------------------------------------------------------------------------------------------
+      //std::cout << "------------------ VectorInspectorPanel calling "
+      //             "getStrokeListData for strokeCount:"
+      //          << strokeCount << std::endl;
 
-//void VectorInspectorPanel::onObjectSwitched(QShowEvent*) {}
-void VectorInspectorPanel::onSelectionSwitched(TSelection* selectionFrom, TSelection* selectionTo) {
-  std::cout << QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toStdString() << " ------- VectorInspectorPanel::onSelectionSwitched(), noticed the selection switched -----" << std::endl;
-}
+      QStandardItemModel *model =
+          m_vectorImage->getStrokeListData(parentWidget());
+      setSourceModel(model);
+      proxyModel->invalidate();
 
-//-------------------------------------------------------------------------------------------------
+      // Autosizing columns after the model is populated
+      for (int column = 1; column < model->columnCount(); ++column) {
+        proxyView->resizeColumnToContents(column);
+      }
+      proxyView->setColumnWidth(0, 30);  // Stroke column width
 
-void VectorInspectorPanel::onSelectionChanged(TSelection* selectionTo) {
-  std::cout << QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toStdString() << " ------- VectorInspectorPanel::onSelectionChanged(), noticed the selection changed -----" << std::endl;
-  TSelection* currentSelection = selectionTo->getCurrent();
+    }
+
+  } else {
+
+    // disconnect all the signals which only apply when the current level is Vector
+    QObject::disconnect(TApp::instance()->getCurrentSelection(), &TSelectionHandle::selectionChanged, this, &VectorInspectorPanel::onSelectionChanged);
+
+    QObject::disconnect(TApp::instance()->getCurrentTool(), &ToolHandle::toolSwitched,
+      this, &VectorInspectorPanel::onToolSwitched);
+
+    QObject::disconnect(TApp::instance()->getCurrentScene(), &TSceneHandle::sceneSwitched,
+      this, &VectorInspectorPanel::onSceneChanged);
+
+    QObject::disconnect(TApp::instance()->getCurrentScene(), &TSceneHandle::sceneChanged,
+      this, &VectorInspectorPanel::onSceneChanged);
     
-  // Get selected strokes
-  ToolHandle* currentTool = TApp::instance()->getCurrentTool();
-  std::cout << "------- Tool Name:" << currentTool->getTool()->getName() << std::endl; // Tool Name:T_Selection
+    setSourceModel(new MultiColumnSortProxyModel);
 
-  std::cout << "------- Tool Type:" << currentTool->getTool()->getToolType() << std::endl; // Tool Type:8
+  }
 
-  if ("T_Selection" == currentTool->getTool()->getName()){
-    //TImage* currentImage = currentTool->getTool()->getImage(false);
+  //qDebug() << "Level type: " << QString::fromStdString(levelType)
+  //  << " at: " << utcNow.toString(Qt::ISODate);
 
-    //std::cout << "------- Image Type:" << currentImage->getType() << std::endl;
+  m_field->setText("Level type: " + QString::fromStdString(levelType)
+    + " at: " + utcNow.toString(Qt::ISODate));
 
-    //TSelection* currentSelection = currentTool->getTool()->getSelection();
+  m_field->adjustSize();
 
-    //TVectorImageP vectorImage = currentTool->getTool()->getImage(false);
+  //filterColumnComboBox->setWindowTitle(
+  //    utcNow.toString(Qt::ISODate) +
+  //    " Level type:" + QString::fromStdString(levelType));
 
-    StrokeSelection* strokeSelection = dynamic_cast<StrokeSelection*>(currentTool->getTool()->getSelection());
+  //std::cout << "11,";
+  update();
+  //std::cout << "12,";
+}
 
-    //for (int i = 0; i < (int)vectorImage->getStrokeCount(); i++) {
-    //  std::cout << "------- stroke " << i << " is selected:" << strokeSelection->isSelected(i) << std::endl;
-    //}
+//-------------------------------------------------------------------------------------------------
+void VectorInspectorPanel::onSelectionSwitched(TSelection *selectionFrom,
+                                               TSelection *selectionTo) {
+  //std::cout
+  //    << QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toStdString()
+  //    << " ------- VectorInspectorPanel::onSelectionSwitched() -----"
+  //    << std::endl;
+}
 
-    // Loop through the rows and set highlighting.
-    //std::cout << "--------- proxyView size():" << std::to_string(proxyModel->rowCount()) << std::endl;
+//-------------------------------------------------------------------------------------------------
+void VectorInspectorPanel::setRowHighlighting() {
+  //std::cout << " ------- VectorInspectorPanel::setRowHighlighting()------- "
+  //          << std::endl;
+  disconnect(proxyView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &VectorInspectorPanel::onVectorInspectorSelectionChanged);
+  QItemSelectionModel *selectionModel = proxyView->selectionModel();
 
-    // 'proxyView' is a pointer to the QTreeView and 'selectionModel' is the model used
-    QItemSelectionModel* selectionModel = proxyView->selectionModel();
-
+//  if (!selectingRowsForStroke) {
     // Clear the previous selection
     selectionModel->clearSelection();
+//  }
 
-    for (int i = 0; i < (int)proxyModel->rowCount(); i++) {
+  m_selectedStrokeIndexes = {};
 
-      QModelIndex index = proxyModel->index(0, 0); // the first column of the first row
+  QModelIndex index =
+      proxyModel->index(0, 0);  // the first column of the first row
 
-      // select all rows whose Stroke value matches the selected strokes.
-      int strokeValue = proxyModel->index(i, 0).data().toInt();
-      //std::cout << "--------------- strokeValue for row:" << i << " is:" << strokeValue << std::endl;
-      if (strokeSelection->isSelected(strokeValue)){
-        index = proxyModel->index(i, 0);
-        selectionModel->select(index, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+  ToolHandle *currentTool = TApp::instance()->getCurrentTool();
+
+  // std::cout << "------- Tool Name:" << currentTool->getTool()->getName()
+  //  << std::endl;  // Tool Name:T_Selection
+
+  // std::cout << "------- Tool Type:" << currentTool->getTool()->getToolType()
+  //  << std::endl;  // Tool Type:8
+
+  if ("T_Selection" == currentTool->getTool()->getName()) {
+    StrokeSelection *strokeSelection =
+        dynamic_cast<StrokeSelection *>(currentTool->getTool()->getSelection());
+
+    if (strokeSelection) {
+      //std::cout << "strokeSelection.isEmpty():" << strokeSelection->isEmpty();
+
+      if (strokeSelection) {
+        // initialize the lookup value list.
+        for (int i = 0; i < (int)proxyModel->rowCount(); i++) {
+          if (strokeSelection->isSelected(i)) {
+            //std::cout << "strokeSelection.isSelected stroke index:" << i
+            //          << std::endl;
+            index = proxyModel->index(i, 0);
+            m_selectedStrokeIndexes.push_back(i);
+          }
+        }
+        // now if selected rows then set them in the QTreeView
+        if (m_selectedStrokeIndexes.size() > 0) {
+          for (int i = 0; i < (int)proxyModel->rowCount(); i++) {
+            if (isSelected(proxyModel->index(i, 0).data().toInt())) {
+              index = proxyModel->index(i, 0);
+              selectionModel->select(index, QItemSelectionModel::Select |
+                                                QItemSelectionModel::Rows);
+            }
+          }
+        } else {
+          selectionModel->clearSelection();
+        }
       }
     }
+    //std::cout << "setRowHighlighting, done with selecting rows in the QTreeView"
+    //          << std::endl;
+    // scroll to show selected rows
+    QModelIndexList selectedIndexes = selectionModel->selectedIndexes();
+
+    if (!selectedIndexes.isEmpty()) {
+      QModelIndex firstSelectedIndex = selectedIndexes.first();
+      proxyView->scrollTo(firstSelectedIndex, QAbstractItemView::PositionAtTop);
+    }
   }
-  else {
-    //selectionModel->clearSelection();
+  connect(proxyView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &VectorInspectorPanel::onVectorInspectorSelectionChanged);
+}
+
+//-------------------------------------------------------------------------------------------------
+
+bool VectorInspectorPanel::isSelected(int index) const {
+  return (std::find(m_selectedStrokeIndexes.begin(), m_selectedStrokeIndexes.end(), index) !=
+    m_selectedStrokeIndexes.end());
+}
+
+//-------------------------------------------------------------------------------------------------
+
+void VectorInspectorPanel::onSelectionChanged() {
+  //std::cout
+  //    << QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toStdString()
+  //    << " ------- VectorInspectorPanel::onSelectionChanged() -----"
+  //    << std::endl;
+
+  if (initiatedByVectorInspector) {
+    //std::cout << "- - initiatedByVectorInspector so no need to update Vector Inspector selection - -" << std::endl;
+  }else{
+    //std::cout << "- - set initiatedBySelectTool to true - -" << std::endl;
+    initiatedBySelectTool = true;
+
+    setRowHighlighting();
+    
+    //std::cout << "- - set initiatedBySelectTool to false - -" << std::endl;
+    initiatedBySelectTool = false;
   }
 }
 
 //-----------------------------------------------------------------------------
 void VectorInspectorPanel::showEvent(QShowEvent *) {
-  connect(TApp::instance()->getCurrentLevel(),
-          SIGNAL(xshLevelSwitched(TXshLevel *)), this, SLOT(onLevelChanged()));
 
-  connect(TApp::instance()->getCurrentFrame(), SIGNAL(frameSwitched()), this,
-          SLOT(onLevelChanged()));
+  QObject::connect(TApp::instance()->getCurrentLevel(), &TXshLevelHandle::xshLevelSwitched, this, &VectorInspectorPanel::onLevelSwitched);
 
-  connect(TApp::instance()->getCurrentSelection(),
-          SIGNAL(selectionSwitched(TSelection *, TSelection *)), this,
-          SLOT(onSelectionSwitched(TSelection *, TSelection *)));
+  QObject::connect(TApp::instance()->getCurrentFrame(), &TFrameHandle::frameSwitched, this, &VectorInspectorPanel::onLevelSwitched);
 
-  connect(TApp::instance()->getCurrentSelection(),
-          SIGNAL(selectionChanged(TSelection *)), this,
-          SLOT(onSelectionChanged(TSelection *)));
+  QObject::connect(TApp::instance()->getCurrentSelection(), &TSelectionHandle::selectionSwitched, this, &VectorInspectorPanel::onSelectionSwitched);
 
-  onLevelChanged();
+  onLevelSwitched();
+  onSelectionChanged();
 }
 
 //-----------------------------------------------------------------------------
 
 void VectorInspectorPanel::hideEvent(QHideEvent *) {
-  disconnect(TApp::instance()->getCurrentLevel(),
-             SIGNAL(xshLevelSwitched(TXshLevel *)), this,
-             SLOT(onLevelChanged()));
 
-  disconnect(TApp::instance()->getCurrentFrame(), SIGNAL(frameSwitched()), this,
-             SLOT(onLevelChanged()));
+  QObject::disconnect(TApp::instance()->getCurrentLevel(), &TXshLevelHandle::xshLevelSwitched, this, &VectorInspectorPanel::onLevelSwitched);
 
-  disconnect(TApp::instance()->getCurrentSelection(),
-             SIGNAL(selectionSwitched(TSelection *)), this,
-             SLOT(onSelectionSwitched(TSelection *)));
+  QObject::disconnect(TApp::instance()->getCurrentFrame(), &TFrameHandle::frameSwitched, this, &VectorInspectorPanel::onLevelSwitched);
 
-  disconnect(TApp::instance()->getCurrentSelection(),
-             SIGNAL(selectionChanged(TSelection *)), this,
-             SLOT(onSelectionChanged(TSelection *)));
+  QObject::disconnect(TApp::instance()->getCurrentSelection(), &TSelectionHandle::selectionSwitched, this, &VectorInspectorPanel::onSelectionSwitched);
+
 }
 
-void VectorInspectorPanel::setSourceModel(QAbstractItemModel *model)
-{
-   proxyModel->setSourceModel(model);
+void VectorInspectorPanel::setSourceModel(QAbstractItemModel *model) {
+  proxyModel->setSourceModel(model);
 }
 
-void VectorInspectorPanel::filterRegExpChanged()
-{
-   QRegExp::PatternSyntax syntax =
-       QRegExp::PatternSyntax(filterSyntaxComboBox->itemData(
-                                                      filterSyntaxComboBox->currentIndex()).toInt());
-   Qt::CaseSensitivity caseSensitivity =
-       filterCaseSensitivityCheckBox->isChecked() ? Qt::CaseSensitive
-                                                  : Qt::CaseInsensitive;
+void VectorInspectorPanel::filterRegExpChanged() {
+  QRegExp::PatternSyntax syntax = QRegExp::PatternSyntax(
+      filterSyntaxComboBox->itemData(filterSyntaxComboBox->currentIndex())
+          .toInt());
+  //Qt::CaseSensitivity caseSensitivity =
+  //    filterCaseSensitivityCheckBox->isChecked() ? Qt::CaseSensitive
+  //                                               : Qt::CaseInsensitive;
 
-   QRegExp regExp(filterPatternLineEdit->text(), caseSensitivity, syntax);
-   proxyModel->setFilterRegExp(regExp);
+  QRegExp regExp(filterPatternLineEdit->text(), Qt::CaseInsensitive, syntax);
+  proxyModel->setFilterRegExp(regExp);
+  setRowHighlighting();
 }
 
-void VectorInspectorPanel::filterColumnChanged()
-{
-   proxyModel->setFilterKeyColumn(filterColumnComboBox->currentIndex());
+void VectorInspectorPanel::filterColumnChanged() {
+  proxyModel->setFilterKeyColumn(filterColumnComboBox->currentIndex());
+  //setRowHighlighting();
 }
 
-void VectorInspectorPanel::sortChanged()
-{
-   proxyModel->setSortCaseSensitivity(
-       sortCaseSensitivityCheckBox->isChecked() ? Qt::CaseSensitive
-                                                : Qt::CaseInsensitive);
+void VectorInspectorPanel::sortChanged() {
+  //proxyModel->setSortCaseSensitivity(sortCaseSensitivityCheckBox->isChecked()
+                                         //? Qt::CaseSensitive
+                                         //: Qt::CaseInsensitive);
 }
 
 void VectorInspectorPanel::copySelectedItemsToClipboard() {
-   QModelIndexList indexes = proxyView->selectionModel()->selectedIndexes();
+  QModelIndexList indexes = proxyView->selectionModel()->selectedIndexes();
 
-   QString selectedText;
-   QMap<int, QString> rows;  // Use a map to sort by row number automatically
+  QString selectedText;
+  QMap<int, QString> rows;  // Use a map to sort by row number automatically
 
-   // Collect data from each selected cell, grouped by row
-   for (const QModelIndex &index : qAsConst(indexes)) {
-       rows[index.row()] += index.data(Qt::DisplayRole).toString() + "\t";  // Tab-separated values
-   }
+  // Collect data from each selected cell, grouped by row
+  for (const QModelIndex &index : qAsConst(indexes)) {
+    rows[index.row()] +=
+        index.data(Qt::DisplayRole).toString() + "\t";  // Tab-separated values
+  }
 
-   // Concatenate rows into a single string, each row separated by a newline
-   for (const QString &row : qAsConst(rows)) {
-       selectedText += row.trimmed() + "\n";  // Remove trailing tab
-   }
+  // Concatenate rows into a single string, each row separated by a newline
+  for (const QString &row : qAsConst(rows)) {
+    selectedText += row.trimmed() + "\n";  // Remove trailing tab
+  }
 
-   // Copy the collected data to the clipboard
-   QClipboard *clipboard = QApplication::clipboard();
-   clipboard->setText(selectedText);
+  // Copy the collected data to the clipboard
+  QClipboard *clipboard = QApplication::clipboard();
+  clipboard->setText(selectedText);
 }
 
 void VectorInspectorPanel::contextMenuEvent(QContextMenuEvent *event) {
-   QMenu menu(this);
-   QAction *copyAction = menu.addAction(tr("Copy"));
-   connect(copyAction, &QAction::triggered, this, &VectorInspectorPanel::copySelectedItemsToClipboard);
+  QMenu menu(this);
+  QAction *copyAction = menu.addAction(tr("Copy"));
+  connect(copyAction, &QAction::triggered, this,
+          &VectorInspectorPanel::copySelectedItemsToClipboard);
 
-   // Show the menu at the cursor position
-   menu.exec(event->globalPos());
+  // Show the menu at the cursor position
+  menu.exec(event->globalPos());
 }
 
 void VectorInspectorPanel::showContextMenu(const QPoint &pos) {
-   QPoint globalPos = proxyView->viewport()->mapToGlobal(pos);
-   QMenu menu;
-   QAction *copyAction = menu.addAction(tr("Copy"));
-   connect(copyAction, &QAction::triggered, this, &VectorInspectorPanel::copySelectedItemsToClipboard);
+  QPoint globalPos = proxyView->viewport()->mapToGlobal(pos);
+  QMenu menu;
+QAction* copyAction = menu.addAction(tr("Copy"));
+connect(copyAction, &QAction::triggered, this,
+  &VectorInspectorPanel::copySelectedItemsToClipboard);
 
-   menu.exec(globalPos);
+menu.exec(globalPos);
+}
+
+void VectorInspectorPanel::onEnteredGroup() {
+  //std::cout << " - - - - - - - - - VectorInspectorPanel::onEnteredGroup() - - - - - - - - - - - - "
+  //  "- - - - "
+  //  << std::endl;
+  QStandardItemModel* model = m_vectorImage->getStrokeListData(parentWidget());
+  setSourceModel(model);
+  proxyView->selectionModel()->clearSelection();
+  //onSelectionChanged();
+  //setRowHighlighting();
+}
+
+void VectorInspectorPanel::onExitedGroup() {
+  //std::cout
+  //  << " - - - - - - - - - VectorInspectorPanel::onExitedGroup() - - - - - - - - - - - - - - - - "
+  //  << std::endl;
+  QStandardItemModel* model = m_vectorImage->getStrokeListData(parentWidget());
+  setSourceModel(model);
+  //proxyView->selectionModel()->clearSelection();
+  //onSelectionChanged();
+  setRowHighlighting();
+}
+
+void VectorInspectorPanel::onChangedStrokes() {
+  //std::cout
+  //  << " - - - - - - - - - VectorInspectorPanel::onChangedStrokes() - - - - - - - - - - - - - - - - "
+  //  << std::endl;
+  QStandardItemModel* model = m_vectorImage->getStrokeListData(parentWidget());
+  setSourceModel(model);
+  setRowHighlighting();
+}
+
+void VectorInspectorPanel::onToolEditingFinished() {
+  //std::cout
+  //  << " - - - - - - - - - VectorInspectorPanel::onToolEditingFinished() - - - - - - - - - - - - - - - - "
+  //  << std::endl;
+  //setRowHighlighting();
+}
+
+void VectorInspectorPanel::onSceneChanged() {
+  //std::cout
+  //  << " - - - - - - - - - VectorInspectorPanel::onSceneChanged() - - - - - - - - - - - - - - - - "
+  //  << std::endl;
+}
+
+void VectorInspectorPanel::onStrokeOrderChanged(int fromIndex, int count,
+  int moveBefore, bool regroup) {
+  //std::cout << " - - - - - - - - - VectorInspectorPanel::onStrokeOrderChanged() start - "
+  //  "- - - - - - - - - - - - - - - "
+  //  << std::to_string(fromIndex) << ", " << std::to_string(count)
+  //  << ", " << std::to_string(moveBefore) << ", "
+  //  << std::to_string(regroup) << std::endl;
+
+  strokeOrderChangedInProgress = true;
+  bool isSortOrderAscending = true;
+
+  ToolHandle* currentTool = TApp::instance()->getCurrentTool();
+  StrokeSelection* strokeSelection =
+    dynamic_cast<StrokeSelection*>(currentTool->getTool()->getSelection());
+
+  strokeSelection->notifyView();
+
+  QStandardItemModel* model = m_vectorImage->getStrokeListData(parentWidget());
+  setSourceModel(model);
+
+  std::vector<int> theIndexes = strokeSelection->getSelection();
+
+  QItemSelectionModel* selectionModel = proxyView->selectionModel();
+
+  selectionModel->clearSelection();
+
+  Qt::SortOrder sortOrder = proxyView->header()->sortIndicatorOrder();
+
+  if (sortOrder == Qt::AscendingOrder) {
+    //std::cout << "Strokes are sorted in ascending order" << std::endl;
+    isSortOrderAscending = true;
+  }
+  else if (sortOrder == Qt::DescendingOrder) {
+    //std::cout << "Strokes are sorted in descending order" << std::endl;
+    isSortOrderAscending = false;
+  }
+
+  QModelIndex index =
+    proxyModel->index(0, 0);  // the first column of the first row
+
+  int moveAmount = (fromIndex < moveBefore) ? moveBefore - 1 - fromIndex : moveBefore - fromIndex;
+
+  //std::cout << "- - - - - moveAmount:" << moveAmount << ", theIndexes.size():" << theIndexes.size() << std::endl;
+
+  int maxIndexValue = proxyModel->rowCount() - 1; //theIndexes.size() - 1;
+  int minIndexValue = 0;
+  int currentRowIndex = 0;
+
+  // get the maximum stroke index value, assume sorted values, no gaps
+  int lastRow = model->rowCount() - 1;
+  QModelIndex firstIndex = model->index(0, 0);
+  QModelIndex lastIndex = model->index(lastRow, 0);
+  //if (lastIndex.isValid() && firstIndex.isValid()) {
+  int maxStrokeIndex = std::max(model->data(firstIndex).toInt(), model->data(lastIndex).toInt());
+  //std::cout << "first, last, max " << model->data(firstIndex).toInt() << ", " << model->data(lastIndex).toInt() << ", " << maxStrokeIndex;
+  //}
+
+  // iterate and create list of selected indexes
+  m_selectedStrokeIndexes.clear();
+
+  if (moveAmount >= 0){
+    //std::cout << "-+-+-+-+ move toward FRONT, moveAmount:" << moveAmount
+    //          << std::endl;
+    for (auto it = theIndexes.rbegin(); it != theIndexes.rend(); ++it) {
+      //std::cout << "it:" << *it << ", ";
+      currentRowIndex = *it + moveAmount;
+      
+      // at the upper row limit?
+      if (currentRowIndex > maxIndexValue) {
+        currentRowIndex = maxIndexValue;
+        maxIndexValue--;
+      }
+      m_selectedStrokeIndexes.push_back(currentRowIndex);
+    }
+  }
+  else {
+    //std::cout << "-+-+-+-+ move toward BACK, moveAmount:" << moveAmount
+    //          << std::endl;
+    for (auto it = theIndexes.begin(); it != theIndexes.end(); ++it) {
+      //std::cout << "it:" << *it << ", ";
+
+      currentRowIndex = *it + moveAmount;
+
+      // at the lower row limit?
+      if (currentRowIndex < minIndexValue) {
+        currentRowIndex = minIndexValue;
+        minIndexValue++;
+      }
+      m_selectedStrokeIndexes.push_back(currentRowIndex);
+    }
+  }
+  
+  // now set selected rows in the QTreeView
+  for (int i = 0; i < (int)proxyModel->rowCount(); i++) {
+    if (isSelected(proxyModel->index(i, 0).data().toInt())) {
+      index = proxyModel->index(i, 0);
+      selectionModel->select(
+        index, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    }
+  }
+
+  // scroll to show selected rows
+  QModelIndexList selectedIndexes = selectionModel->selectedIndexes();
+
+  if (!selectedIndexes.isEmpty()) {
+    QModelIndex firstSelectedIndex = selectedIndexes.first();
+    proxyView->scrollTo(firstSelectedIndex, QAbstractItemView::PositionAtTop);
+  }
+
+  strokeOrderChangedInProgress = false;
+
+  //std::cout << " - - - - - - - - - VectorInspectorPanel::onStrokeOrderChanged() end - - - - - - - - -" << std::endl;
+}
+
+void VectorInspectorPanel::onToolSwitched() {
+  //std::cout << " - - - - - - - - - VectorInspectorPanel::onToolSwitched() - - - - "
+  //             "- - - - - - - - - - - - "
+  //          << std::endl;
+
+  QObject::disconnect(TApp::instance()->getCurrentTool(),
+                      &ToolHandle::toolEditingFinished, this,
+                      &VectorInspectorPanel::onToolEditingFinished);
+
+  QObject::connect(TApp::instance()->getCurrentTool(),
+                   &ToolHandle::toolEditingFinished, this,
+                   &VectorInspectorPanel::onToolEditingFinished);
+
+  setRowHighlighting();
+}
+
+void VectorInspectorPanel::onSelectedAllStrokes() {
+  //std::cout << " - - - - - - - - - VectorInspectorPanel::onSelectedAllStrokes() "
+  //             "Strokes signal - - - - - - - - - - - - - - - - "
+  //          << std::endl;
+  setRowHighlighting();
+}
+
+void VectorInspectorPanel::onSelectedStroke(const QModelIndex& index) {
+  //std::cout << " - - - - - - - - - VectorInspectorPanel::onSelectedStroke() - - - - - - - - - - - - - - - - "
+  //  << std::endl;
+  //std::cout << "- - set selectingRowsForStroke to true - -" << std::endl;
+  selectingRowsForStroke = true;
+  setRowHighlighting();
+  //std::cout << "- - set selectingRowsForStroke to false - -" << std::endl;
+  selectingRowsForStroke = false;
+}
+
+void VectorInspectorPanel::onVectorInspectorSelectionChanged(
+    const QItemSelection &selected, const QItemSelection &deselected) {
+  //std::cout << " - - - - - - - - - VectorInspectorPanel::onVectorInspectorSelectionChanged() - - - - - - - - - - - - - - - - "
+  //  << std::endl;
+   // Handle the selection changed event
+  if (strokeOrderChangedInProgress) {
+    //std::cout << "- - strokeOrderChangedInProgress so no need to update select tool - -" << std::endl;
+  }
+  else if (initiatedBySelectTool) {
+    //std::cout << "- - initiatedBySelectTool so no need to update select tool - -" << std::endl;
+  }
+  else if (selectingRowsForStroke) {
+    //std::cout << "- - selectingRowsForStroke so no need to update select tool - -" << std::endl;
+  }else{
+    //std::cout << "- - set initiatedByVectorInspector to true - -" << std::endl;
+    initiatedByVectorInspector = true;
+
+    updateSelectToolSelectedRows(selected, deselected);
+
+    //std::cout << "- - set initiatedByVectorInspector to false - -" << std::endl;
+    initiatedByVectorInspector = false;
+  }
+}
+
+void VectorInspectorPanel::updateSelectToolSelectedRows(const QItemSelection& selected, const QItemSelection& deselected) {
+  //std::cout << " - - - - - - - - - VectorInspectorPanel::updateSelectToolSelectedRows() - - - - - - - - - - - - - - - - "
+  //  << std::endl;
+  ToolHandle* currentTool = TApp::instance()->getCurrentTool();
+  VectorSelectionTool* vectorSelectionTool =
+    dynamic_cast<VectorSelectionTool*>(currentTool->getTool());
+  StrokeSelection* strokeSelection =
+    dynamic_cast<StrokeSelection*>(currentTool->getTool()->getSelection());
+
+  if (strokeSelection) {
+
+    disconnect(proxyView, &QTreeView::clicked, this, &VectorInspectorPanel::onSelectedStroke);
+
+    QModelIndexList selectedIndexes = selected.indexes();
+    //qDebug() << "Selected items:";
+    for (const QModelIndex& index : selectedIndexes) {
+      if (index.column() == 0) {  // Check if the column is the first column
+        int selectedStrokeIndex = index.data(Qt::DisplayRole).toInt();
+        //qDebug() << selectedStrokeIndex;
+        strokeSelection->select(selectedStrokeIndex, 1);
+        strokeSelection->notifyView();
+      }
+    }
+
+    QModelIndexList deselectedIndexes = deselected.indexes();
+    //qDebug() << "Deselected items:";
+    int priorRowStrokeIndexValue = -1;
+    for (const QModelIndex &index : deselectedIndexes) {
+      if (index.column() == 0) {  // Check if the column is the first column
+        int deselectedStrokeIndex = index.data(Qt::DisplayRole).toInt();
+        if (deselectedStrokeIndex == priorRowStrokeIndexValue) {
+        } else {
+          //qDebug() << deselectedStrokeIndex;
+          strokeSelection->select(deselectedStrokeIndex, 0);
+          strokeSelection->notifyView();
+          priorRowStrokeIndexValue = deselectedStrokeIndex;
+        }
+      }
+    }
+    connect(proxyView, &QTreeView::clicked, this, &VectorInspectorPanel::onSelectedStroke);
+  }
 }

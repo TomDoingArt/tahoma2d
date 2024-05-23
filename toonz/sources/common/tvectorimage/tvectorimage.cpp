@@ -222,6 +222,8 @@ void TVectorImage::Imp::moveStrokes(int fromIndex, int count, int moveBefore,
 
   assert(fromIndex != moveBefore);
 
+  //qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << "TVectorImage::Imp::moveStrokes(" << QString::number(fromIndex) << ", " << QString::number(count) << ", " << QString::number(moveBefore) << ", " << QString::number(regroup) << ")";
+
   for (int i = 0; i < count; i++)
     if (fromIndex < moveBefore)
       moveStroke(fromIndex, moveBefore);
@@ -230,8 +232,15 @@ void TVectorImage::Imp::moveStrokes(int fromIndex, int count, int moveBefore,
 
   std::vector<int> changedStrokes;
   if (regroup) regroupGhosts(changedStrokes);
-  if (!changedStrokes.empty())
-    notifyChangedStrokes(changedStrokes, std::vector<TStroke *>(), false);
+  if (!changedStrokes.empty()) {
+    //qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << "TVectorImage::Imp::moveStrokes - changedStrokes is not empty";
+    notifyChangedStrokes(changedStrokes, std::vector<TStroke*>(), false);
+    emit m_vi->changedStrokeOrder(fromIndex, count, moveBefore, regroup); //notify that strokes have moved in the stack order
+  }
+  else {
+    //emit m_vi->changedStrokes(); //notify to trigger slots watching for stroke order changes
+    emit m_vi->changedStrokeOrder(fromIndex, count, moveBefore, regroup); //notify that strokes have moved in the stack order
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -414,9 +423,9 @@ UINT TVectorImage::getStrokeCount() const { return m_imp->m_strokes.size(); }
 //--------------------------------------------------------------------
 
 QStandardItemModel *TVectorImage::getStrokeListData(QObject *parent) {
-  QStandardItemModel *model = new QStandardItemModel(0, 9, parent);
+  QStandardItemModel *model = new QStandardItemModel(0, 10, parent);
 
-  model->setHeaderData(0, Qt::Horizontal, QObject::tr("Stroke"));
+  model->setHeaderData(0, Qt::Horizontal, QObject::tr("#"));
   model->setHeaderData(1, Qt::Horizontal, QObject::tr("Group Id"));
   model->setHeaderData(2, Qt::Horizontal, QObject::tr("Id"));
   model->setHeaderData(3, Qt::Horizontal, QObject::tr("StyleId"));
@@ -427,17 +436,17 @@ QStandardItemModel *TVectorImage::getStrokeListData(QObject *parent) {
   model->setHeaderData(8, Qt::Horizontal, QObject::tr("y"));
   model->setHeaderData(9, Qt::Horizontal, QObject::tr("Thickness"));
 
-  qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate)
-                     << "tvectorimage.getStrokeListData() called, stroke count:"
-                     << (UINT)m_imp->m_strokes.size()
-                     << ", region count:" << (UINT)getRegionCount();
+  //qDebug().noquote() << QDateTime::currentDateTimeUtc().toString(Qt::ISODate)
+  //                   << "tvectorimage.getStrokeListData() called, stroke count:"
+  //                   << (UINT)m_imp->m_strokes.size()
+  //                   << ", region count:" << (UINT)getRegionCount();
 
   int currentGroup = 0;
   if (m_imp->m_insideGroup.m_id.size() > 0) {
     currentGroup = m_imp->m_insideGroup.m_id[0];
   }
   
-  std::cout << "+++++++++++++++ currentGroup:" << std::to_string(currentGroup) << std::endl;
+  //std::cout << "+++++++++++++++ currentGroup:" << std::to_string(currentGroup) << std::endl;
 
   for (int i = 0; i < (UINT)m_imp->m_strokes.size(); i++) {
     // add vector chunk details
@@ -970,6 +979,7 @@ m_imp->notifyChangedStrokes(strokeIndexArray, aux, areFlipped);
   }
 else*/
   m_imp->notifyChangedStrokes(strokeIndexArray, oldStrokeArray, areFlipped);
+  //std::cout << "************* notifyChangedStrokes() form 01 ***************" << std::endl;
 }
 
 //-----------------------------------------------------------------------------
@@ -982,6 +992,7 @@ void TVectorImage::notifyChangedStrokes(int strokeIndexArray,
   std::vector<TStroke *> oldStrokeArray(1);
   oldStrokeArray[0] = oldStroke ? oldStroke : getStroke(strokeIndexArray);
   m_imp->notifyChangedStrokes(app, oldStrokeArray, isFlipped);
+  //std::cout << "************* notifyChangedStrokes() form 02 ***************" << std::endl;
 }
 
 //-----------------------------------------------------------------------------
@@ -1112,20 +1123,20 @@ void TVectorImage::Imp::notifyChangedStrokes(
   checkIntersections();
 #endif
 
-  std::cout << " -=-=-=-=-=-=-=-=-=- TVectorImage::Imp::notifyChangedStrokes() 0 =-=-=-=-=-=-=-=-=-=-=-" << std::endl;
+  //std::cout << " -=-=-=-=-=-=-=-=-=- TVectorImage::Imp::notifyChangedStrokes() section 0 =-=-=-=-=-=-=-=-=-=-=-" << std::endl;
 
   assert(oldStrokeArray.empty() ||
          strokeIndexArray.size() == oldStrokeArray.size());
 
   if (!m_computedAlmostOnce && !m_notIntersectingStrokes) return;
 
-  std::cout << " -=-=-=-=-=-=-=-=-=- TVectorImage::Imp::notifyChangedStrokes() 1 =-=-=-=-=-=-=-=-=-=-=-" << std::endl;
+  //std::cout << " -=-=-=-=-=-=-=-=-=- TVectorImage::Imp::notifyChangedStrokes() section 1 =-=-=-=-=-=-=-=-=-=-=-" << std::endl;
   typedef std::list<TEdge *> EdgeList;
   std::vector<EdgeList> oldEdgeListArray(strokeIndexArray.size());
   int i;
 
-  // se si sono trasformati  interi gruppi (senza deformare le stroke) non c'e'
-  // bisogno di ricalcolare le regioni!
+  // if entire groups have been transformed (without deforming the strokes), 
+  // there's no need to recalculate the regions!
   if (oldStrokeArray.empty() && areWholeGroups(strokeIndexArray)) {
     m_areValidRegions = true;
     for (i = 0; i < (int)m_regions.size(); i++)
@@ -1133,12 +1144,12 @@ void TVectorImage::Imp::notifyChangedStrokes(
     return;
   }
 
-  std::cout << " -=-=-=-=-=-=-=-=-=- TVectorImage::Imp::notifyChangedStrokes() 2 =-=-=-=-=-=-=-=-=-=-=-" << std::endl;
+  //std::cout << " -=-=-=-=-=-=-=-=-=- TVectorImage::Imp::notifyChangedStrokes() section 2 =-=-=-=-=-=-=-=-=-=-=-" << std::endl;
 
   QMutexLocker sl(m_mutex);
-  for (i = 0; i < (int)strokeIndexArray.size(); i++)  // ATTENZIONE! non si puo'
-                                                      // fare eraseIntersection
-                                                      // in questo stesso ciclo
+  for (i = 0; i < (int)strokeIndexArray.size(); i++)  // WARNING! You can't 
+                                                      // perform eraseIntersection 
+                                                      // in this same loop
   {
     VIStroke *s = m_strokes[strokeIndexArray[i]];
     // if (s->m_s->isSelfLoop())
@@ -1148,9 +1159,10 @@ void TVectorImage::Imp::notifyChangedStrokes(
     for (; it != s->m_edgeList.end(); it++) {
       TEdge *e                            = new TEdge(**it, false);
       if (!oldStrokeArray.empty()) e->m_s = oldStrokeArray[i];
-      oldEdgeListArray[i].push_back(e);  // bisogna allocare nuovo edge,
-                                         // perche'la eraseIntersection poi lo
-                                         // cancella....
+      oldEdgeListArray[i].push_back(e);  // You need to allocate a new edge,
+                                         // because eraseIntersection will
+                                         // delete it afterwards...
+
       if ((*it)->m_toBeDeleted) delete *it;
     }
     s->m_edgeList.clear();
@@ -1174,7 +1186,8 @@ void TVectorImage::Imp::notifyChangedStrokes(
 #ifdef _DEBUG
   checkIntersections();
 #endif
-  std::cout << " -=-=-=-=-=-=-=-=-=- TVectorImage::Imp::notifyChangedStrokes() 1 =-=-=-=-=-=-=-=-=-=-=-" << std::endl;
+  emit m_vi->changedStrokes();
+  //std::cout << " -=-=-=-=-=-=-=-=-=- TVectorImage::Imp::notifyChangedStrokes() section 3 =-=-=-=-=-=-=-=-=-=-=-" << std::endl;
 }
 
 //-----------------------------------------------------------------------------
@@ -2600,6 +2613,9 @@ bool TVectorImage::enterGroup(int index) {
   if (newGroupId == m_imp->m_insideGroup) return false;
 
   m_imp->m_insideGroup = newGroupId;
+
+  emit enteredGroup();
+
   return true;
 }
 
@@ -2620,6 +2636,9 @@ int TVectorImage::exitGroup() {
   assert(i != m_imp->m_strokes.size());
 
   m_imp->m_insideGroup = m_imp->m_insideGroup.getParent();
+
+  emit exitedGroup();
+
   return ret;
 }
 

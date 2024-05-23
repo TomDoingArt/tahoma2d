@@ -7,6 +7,8 @@
 #include <QLabel>
 #include "multicolumnsortproxymodel.h"
 #include "toonzqt/tselectionhandle.h"
+#include "tvectorimage.h"
+#include "toonz/tscenehandle.h"
 
  QT_BEGIN_NAMESPACE
  class QAbstractItemModel;
@@ -41,8 +43,9 @@ class VectorInspectorPanel final : public QWidget {
   Q_OBJECT
 
   QLabel *m_field;
-  QLabel* m_tempField;
   QScrollArea *m_frameArea;
+  TVectorImage *m_vectorImage;
+  std::vector<int> m_selectedStrokeIndexes;
 
 public:
   VectorInspectorPanel(QWidget *parent = 0, Qt::WindowFlags flags = Qt::WindowFlags());
@@ -55,9 +58,21 @@ public:
   void getVectorLineData(std::ostream &os, int stroke, std::vector<int> groupIds) const {}
 
 public slots:
-  void onLevelChanged();
+  void onLevelSwitched();
   void onSelectionSwitched(TSelection* selectionFrom, TSelection* selectionTo);
-  void onSelectionChanged(TSelection* selectionTo);
+  void setRowHighlighting();
+  void onSelectionChanged();
+  void onEnteredGroup();
+  void onExitedGroup();
+  void onChangedStrokes();
+  void onToolEditingFinished();
+  void onSceneChanged();
+  void onStrokeOrderChanged(int, int, int, bool);
+  void onToolSwitched();
+  void onSelectedAllStrokes();
+  void onSelectedStroke(const QModelIndex&);
+  void onVectorInspectorSelectionChanged(const QItemSelection&, const QItemSelection&);
+  void updateSelectToolSelectedRows(const QItemSelection&, const QItemSelection&);
 
 protected:
   void showEvent(QShowEvent *) override;
@@ -73,14 +88,17 @@ private:
 
   QGroupBox *proxyGroupBox;
   QTreeView *proxyView;
-  QCheckBox *filterCaseSensitivityCheckBox;
-  QCheckBox *sortCaseSensitivityCheckBox;
   QLabel *filterPatternLabel;
   QLabel *filterSyntaxLabel;
   QLabel *filterColumnLabel;
   QLineEdit *filterPatternLineEdit;
   QComboBox *filterSyntaxComboBox;
   QComboBox *filterColumnComboBox;
+  bool initiatedByVectorInspector;
+  bool initiatedBySelectTool;
+  bool strokeOrderChangedInProgress;
+  bool isSelected(int) const;
+  bool selectingRowsForStroke;
 };
 
 #endif  // VECTORINSPECTOR_H

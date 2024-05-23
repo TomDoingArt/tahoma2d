@@ -1261,7 +1261,6 @@ VectorSelectionTool::VectorSelectionTool(int targetType)
 //------------------------------------------------------------------------------
 
 void VectorSelectionTool::setNewFreeDeformer() {
-  std::cout << " - - - - - - - - VectorSelectionTool::setNewFreeDeformer()";
   clearDeformers();
 
   TVectorImageP vi = TImageP(getImage(
@@ -1365,8 +1364,6 @@ void VectorSelectionTool::updateTranslation() {
 //-----------------------------------------------------------------------------
 
 void VectorSelectionTool::updateSelectionTarget() {
-  std::cout << " - - - - - - - - VectorSelectionTool::updateSelectionTarget()\n";
-  // Make the correct selection current
   if (m_selectionTarget.getIndex() == NORMAL_TYPE_IDX) {
     std::vector<int>
         selectedStrokes;  // Retain previously selected strokes across
@@ -1376,15 +1373,6 @@ void VectorSelectionTool::updateSelectionTarget() {
     m_strokeSelection.makeCurrent();  // Empties any (different) previously
                                       // current selection on its own
     selectedStrokes.swap(m_strokeSelection.getSelection());
-
-    std::cout << "- - - - - - selectedStrokes: ";
-    std::cout << "m_strokeSelection.getSelection().size():" << m_strokeSelection.getSelection().size() << std::endl;
-    //for (int v : m_strokeSelection.getSelection()) std::cout << v << ", ";
-    //std::cout << std::endl;
-
-    //for (int i = 0; i < selectedStrokes.size(); i++) {
-    //  std::cout << "i=:" << i << ", stroke:" << selectedStrokes[i] << std::endl;
-    //}
 
     return;
   }
@@ -1760,7 +1748,6 @@ void VectorSelectionTool::drawInLevelType(const TVectorImage &vi) {
 //-----------------------------------------------------------------------------
 
 void VectorSelectionTool::drawSelectedStrokes(const TVectorImage &vi) {
-  //std::cout << " - - - - - - - - VectorSelectionTool::drawSelectedStrokes()";
   glEnable(GL_LINE_STIPPLE);
 
   double pixelSize = getPixelSize();
@@ -1974,7 +1961,6 @@ bool VectorSelectionTool::selectStroke(int index, bool toggle) {
 //-----------------------------------------------------------------------------
 
 void VectorSelectionTool::onActivate() {
-  std::cout << " - - - - - - - - VectorSelectionTool::onActivate()\n";
   if (m_firstTime) {
     m_includeIntersection.setValue(l_strokeSelectIncludeIntersection ? 1 : 0);
     m_constantThickness.setValue(l_strokeSelectConstantThickness ? 1 : 0);
@@ -2050,7 +2036,6 @@ bool VectorSelectionTool::isDragging() const {
 //-----------------------------------------------------------------------------
 
 void VectorSelectionTool::doOnDeactivate() {
-  std::cout << " - - - - - - - - VectorSelectionTool::doOnDeactivate()" << std::endl;
   m_strokeSelection.selectNone();
   m_levelSelection.selectNone();
   m_deformValues.reset();

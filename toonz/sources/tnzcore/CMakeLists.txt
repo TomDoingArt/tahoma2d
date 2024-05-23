@@ -6,6 +6,7 @@ set(MOC_HEADERS
     ../include/tipcsrvP.h
     ../include/tmsgcore.h
     ../include/tfunctorinvoker.h
+    ../include/tvectorimage.h
 )
 
 set(HEADERS ${MOC_HEADERS}
