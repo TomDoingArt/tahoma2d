@@ -23,6 +23,7 @@
 #include "previewfxmanager.h"
 #include "comboviewerpane.h"
 #include "historypane.h"
+#include "vectorinspector.h"
 #include "cleanupsettingspane.h"
 #include "vectorguideddrawingpane.h"
 #include "expressionreferencemanager.h"
@@ -289,8 +290,8 @@ void SchematicScenePanel::onDeleteFxs(const FxSelection *selection) {
       std::list<Link>(selection->getLinks().begin(),
                       selection->getLinks().end()),
       std::list<int>(selection->getColumnIndexes().begin(),
-                selection->getColumnIndexes().end()),
-                              app->getCurrentXsheet(), app->getCurrentFx());
+                     selection->getColumnIndexes().end()),
+      app->getCurrentXsheet(), app->getCurrentFx());
 }
 
 //-----------------------------------------------------------------------------
@@ -304,7 +305,7 @@ void SchematicScenePanel::onDeleteStageObjects(
   TApp *app = TApp::instance();
   TStageObjectCmd::deleteSelection(
       std::vector<TStageObjectId>(selection->getObjects().toVector().begin(),
-                  selection->getObjects().toVector().end()),
+                                  selection->getObjects().toVector().end()),
       std::list<QPair<TStageObjectId, TStageObjectId>>(
           selection->getLinks().begin(), selection->getLinks().end()),
       std::list<int>(selection->getSplines().begin(),
@@ -690,7 +691,7 @@ void PaletteViewerPanel::showEvent(QShowEvent *) {
   bool ret = connect(sceneHandle, SIGNAL(preferenceChanged(const QString &)),
                      this, SLOT(onPreferenceChanged(const QString &)));
   ret      = ret && connect(sceneHandle, SIGNAL(sceneSwitched()), this,
-                            SLOT(onSceneSwitched()));
+                       SLOT(onSceneSwitched()));
   assert(ret);
 }
 
@@ -1233,7 +1234,8 @@ class BrowserFactory final : public TPanelFactory {
 public:
   BrowserFactory() : TPanelFactory("Browser") {}
   void initialize(TPanel *panel) override {
-    FileBrowser *browser = new FileBrowser(panel, Qt::WindowFlags(), false, true);
+    FileBrowser *browser =
+        new FileBrowser(panel, Qt::WindowFlags(), false, true);
     panel->setWidget(browser);
     panel->setWindowTitle(QObject::tr("File Browser"));
     panel->getTitleBar()->showTitleBar(TApp::instance()->getShowTitleBars());
@@ -1253,7 +1255,8 @@ class PreproductionBoardFactory final : public TPanelFactory {
 public:
   PreproductionBoardFactory() : TPanelFactory("PreproductionBoard") {}
   void initialize(TPanel *panel) override {
-    SceneBrowser *browser = new SceneBrowser(panel, Qt::WindowFlags(), false, true);
+    SceneBrowser *browser =
+        new SceneBrowser(panel, Qt::WindowFlags(), false, true);
     panel->setWidget(browser);
     panel->setWindowTitle(QObject::tr("Preproduction Board"));
     panel->getTitleBar()->showTitleBar(TApp::instance()->getShowTitleBars());
@@ -1551,6 +1554,28 @@ OpenFloatingPanel openHistoryPanelCommand(MI_OpenHistoryPanel, "HistoryPanel",
 //=============================================================================
 
 //=============================================================================
+// Vector Inspector
+//=============================================================================
+
+//-----------------------------------------------------------------------------
+
+class VectorInspectorPanelFactory final : public TPanelFactory {
+public:
+  VectorInspectorPanelFactory() : TPanelFactory("VectorInspectorPanel") {}
+  void initialize(TPanel *panel) override {
+    VectorInspectorPanel *vectorInspector = new VectorInspectorPanel(panel);
+    panel->setWidget(vectorInspector);
+    panel->setWindowTitle(QObject::tr("Vector Inspector"));
+    panel->setIsMaximizable(false);
+  }
+} vectorInspectorPanelFactory;
+
+OpenFloatingPanel openVectorInspectorPanelCommand(
+    MI_OpenVectorInspectorPanel, "VectorInspectorPanel",
+    QObject::tr("Vector Inspector"));
+//=============================================================================
+
+//=============================================================================
 // StopMotion Controller
 //-----------------------------------------------------------------------------
 
@@ -1793,7 +1818,7 @@ public:
 
 //=============================================================================
 OpenFloatingPanel openFxBrowserCommand(MI_InsertFx, "FxBrowser",
-                                        QObject::tr("Fx Browser"));
+                                       QObject::tr("Fx Browser"));
 
 //-----------------------------------------------------------------------------
 
@@ -1833,7 +1858,7 @@ public:
 
 //=============================================================================
 OpenFloatingPanel openLocatorCommand(MI_OpenLocator, "Locator",
-                                       QObject::tr("Locator"));
+                                     QObject::tr("Locator"));
 
 //=========================================================
 // OutputSettingsPanel
@@ -1868,8 +1893,7 @@ public:
 
 //=============================================================================
 OpenFloatingPanel openOutputSettingsPanelCommand(
-    MI_OutputSettings, "OutputSettingsPanel",
-    QObject::tr("Output Settings"));
+    MI_OutputSettings, "OutputSettingsPanel", QObject::tr("Output Settings"));
 
 //=========================================================
 // PreviewSettingsPanel
@@ -1904,4 +1928,5 @@ public:
 
 //=============================================================================
 OpenFloatingPanel openPreviewSettingsPanelCommand(
-    MI_PreviewSettings, "PreviewSettingsPanel", QObject::tr("Preview Settings"));
+    MI_PreviewSettings, "PreviewSettingsPanel",
+    QObject::tr("Preview Settings"));

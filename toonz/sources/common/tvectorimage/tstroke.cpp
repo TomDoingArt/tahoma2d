@@ -276,9 +276,8 @@ void roundNegativeThickess(QuadStrokeChunkArray &v) {
         tempVectTQ[2]->setThickP2(TThickPoint(tempVectTQ[2]->getP2(), 0.0));
 
         copy(tempVectTQ.begin(), tempVectTQ.end(), back_inserter(protoStroke));
-        tempVectTQ
-            .clear();  // non serve una clearPointerArray perchè il possesso
-                       // va alla protoStroke
+        tempVectTQ.clear();  // non serve una clearPointerArray perchè il
+                             // possesso va alla protoStroke
       }
       break;
     case 2:
@@ -972,7 +971,7 @@ bool TStroke::Imp::retrieveChunkAndItsParamameterAtLength(double s, int &chunk,
     // estremi
     if (t == -1) {
       if (s <= m_partialLengthArray[controlPointOffset]) t = 0.0;
-      t                                                    = 1.0;
+      t = 1.0;
     }
 
     return false;
@@ -1267,7 +1266,7 @@ bool TStroke::getNearestW(const TPointD &p, double &outW, double &dist2,
                           bool checkBBox) const {
   double outT;
   int chunkIndex;
-  bool ret      = getNearestChunk(p, outT, chunkIndex, dist2, checkBBox);
+  bool ret = getNearestChunk(p, outT, chunkIndex, dist2, checkBBox);
   if (ret) outW = getW(chunkIndex, outT);
   return ret;
 }
@@ -2218,7 +2217,7 @@ void TStroke::split(double w, TStroke &f, TStroke &s) const {
     if (tq1->getLength() != 0.0 || w == 0.0 || vTQ.empty()) vTQ.push_back(tq1);
 
     // build a temp and swap
-    TStroke *ts1  = TStroke::create(vTQ);
+    TStroke *ts1 = TStroke::create(vTQ);
     if (!ts1) ts1 = new TStroke;
     ts1->swapGeometry(f);
 
@@ -2231,7 +2230,7 @@ void TStroke::split(double w, TStroke &f, TStroke &s) const {
 
     for (i = chunk + 1; i < getChunkCount(); ++i) vTQ.push_back(chunkArray[i]);
 
-    TStroke *ts2  = TStroke::create(vTQ);
+    TStroke *ts2 = TStroke::create(vTQ);
     if (!ts2) ts2 = new TStroke;
     ts2->swapGeometry(s);
 
@@ -2288,6 +2287,107 @@ void TStroke::print(ostream &os) const {
 }
 
 //-----------------------------------------------------------------------------
+void TStroke::addChunkRows(QAbstractItemModel *model, int stroke,
+                           std::vector<int> groupIds, int currentGroup) {
+  const TThickQuadratic *q;
+
+  QString strokeIndex =
+      QString::fromStdString(std::to_string(stroke));  // stroke index
+  QString strokeID =
+      QString::fromStdString(std::to_string(getId()));  // stroke ID
+  QString styleID =
+      QString::fromStdString(std::to_string(m_imp->m_styleId));  // style ID
+  QString selfLoop = QString::fromStdString(
+      (m_imp->m_selfLoop) ? "true" : "false");  // self loop
+
+  string groupIdsString = "";
+  int *groupIdData      = groupIds.data();
+  for (std::ptrdiff_t i = groupIds.size() - 1; i > -1; --i) {
+    if (currentGroup == groupIdData[i]) {
+      groupIdsString = groupIdsString + "(" + std::to_string(groupIdData[i]) +
+                       (i > 0 ? "." : "") + ")";
+
+    } else {
+      groupIdsString =
+          groupIdsString + std::to_string(groupIdData[i]) + (i > 0 ? "." : "");
+    }
+  }
+
+  QString groupIDs = QString::fromStdString(groupIdsString);  // group IDs
+
+  int i = 0;
+  for (i = 0; i < getChunkCount(); ++i) {
+    q = getChunk(i);
+
+    // addVectorDataRow for P0
+    addVectorDataRow(
+        model, strokeIndex,                         // stroke index
+        groupIDs,                                   // group IDs
+        strokeID,                                   // stroke ID
+        styleID,                                    // style ID
+        selfLoop,                                   // self loop
+        QString::fromStdString(std::to_string(i)),  // quad
+        QString::fromStdString("0"),                // Pn
+        QString::fromStdString(std::to_string(q->getThickP0().x)),  // x
+        QString::fromStdString(std::to_string(q->getThickP0().y)),  // y
+        QString::fromStdString(
+            std::to_string(q->getThickP0().thick)));  // thickness
+
+    // addVectorDataRow for P1
+    addVectorDataRow(
+        model, strokeIndex,                         // stroke index
+        groupIDs,                                   // group IDs
+        strokeID,                                   // stroke ID
+        styleID,                                    // style ID
+        selfLoop,                                   // self loop
+        QString::fromStdString(std::to_string(i)),  // quad
+        QString::fromStdString("1"),                // Pn
+        QString::fromStdString(std::to_string(q->getThickP1().x)),  // x
+        QString::fromStdString(std::to_string(q->getThickP1().y)),  // y
+        QString::fromStdString(
+            std::to_string(q->getThickP1().thick)));  // thickness
+
+    assert(i == getChunkCount() - 1 ||
+           (getChunk(i)->getThickP2() == getChunk(i + 1)->getThickP0()));
+  }
+
+  q = getChunk(getChunkCount() - 1);
+
+  // addVectorDataRow for P2
+  addVectorDataRow(
+      model, strokeIndex,                           // stroke index
+      groupIDs,                                     // group IDs
+      strokeID,                                     // stroke ID
+      styleID,                                      // style ID
+      selfLoop,                                     // self loop
+      QString::fromStdString(std::to_string(--i)),  // quad
+      QString::fromStdString("2"),                  // Pn
+      QString::fromStdString(std::to_string(q->getThickP2().x)),  // x
+      QString::fromStdString(std::to_string(q->getThickP2().y)),  // y
+      QString::fromStdString(
+          std::to_string(q->getThickP2().thick)));  // thickness
+}
+
+//---------------------------------------------------------------------------------------------
+void addVectorDataRow(QAbstractItemModel *model, const QString &stroke,
+                      const QString &groupid, const QString &id,
+                      const QString &styleid, const QString &selfLoop,
+                      const QString &quad, const QString &p, const QString &x,
+                      const QString &y, const QString &thickness) {
+  model->insertRow(0);
+  model->setData(model->index(0, 0), stroke);
+  model->setData(model->index(0, 1), groupid);
+  model->setData(model->index(0, 2), id);
+  model->setData(model->index(0, 3), styleid);
+  model->setData(model->index(0, 4), selfLoop);
+  model->setData(model->index(0, 5), quad);
+  model->setData(model->index(0, 6), p);
+  model->setData(model->index(0, 7), x);
+  model->setData(model->index(0, 8), y);
+  model->setData(model->index(0, 9), thickness);
+}
+
+//-----------------------------------------------------------------------------
 
 void TStroke::transform(const TAffine &aff, bool doChangeThickness) {
   for (UINT i = 0; i < m_imp->m_centerLineArray.size(); ++i) {
@@ -2295,7 +2395,7 @@ void TStroke::transform(const TAffine &aff, bool doChangeThickness) {
     ref                  = transformQuad(aff, ref, doChangeThickness);
 
     if (doChangeThickness) {
-      double det                                     = aff.det();
+      double det = aff.det();
       if (det == 0) m_imp->m_negativeThicknessPoints = getControlPointCount();
       if (m_imp->m_maxThickness != -1) m_imp->m_maxThickness *= sqrt(fabs(det));
       // else if(det<0)
@@ -2452,10 +2552,10 @@ TThickPoint TStroke::getCentroid() const {
 
   if (totalLen == 0) return getControlPoint(0);
 
-  double step           = totalLen * 0.1;
-  double len            = 0;
+  double step = totalLen * 0.1;
+  double len  = 0;
   if (step > 10.0) step = 10.0;
-  int count             = 0;
+  int count = 0;
   TThickPoint point;
   for (; len <= totalLen; len += step) {
     count++;
@@ -2657,7 +2757,7 @@ bool greaterThanOneAndLesserThanZero(double val) {
   if (val > 1.0 || val < 0.0) return true;
   return false;
 }
-}
+}  // namespace
 
 //---------------------------------------------------------------------------
 
@@ -3063,7 +3163,7 @@ double computeMaxError3D(const TThickCubic &cubic,
     T3DPointD delta =
         thickPntTo3DPnt(cubic.getThickPoint(u[i])) - *(pointsArrayBegin + i);
 
-    double thick            = cubic.getThickPoint(u[i]).thick;
+    double thick = cubic.getThickPoint(u[i]).thick;
     if (thick <= 2.0) thick = 2.0;
 
     err = norm2(TPointD(delta.x, delta.y)) / thick;
@@ -3095,9 +3195,9 @@ double NewtonRaphsonRootFind3D(const TThickCubic &cubic, const T3DPointD &p3D,
 
 //---------------------------------------------------------------------------
 int compareDouble(const void *e1, const void *e2) {
-  return (*(double *)e1 < *(double *)e2)
-             ? -1
-             : (*(double *)e1 == *(double *)e2) ? 0 : 1;
+  return (*(double *)e1 < *(double *)e2)    ? -1
+         : (*(double *)e1 == *(double *)e2) ? 0
+                                            : 1;
 }
 //---------------------------------------------------------------------------
 //! Ricalcola i valori di u[] sulla base del metodo di Newton Raphson
@@ -3610,7 +3710,8 @@ TThickCubic *TCubicStroke::generateCubic3D(const T3DPointD pointsArrayBegin[],
 
   for (i = 0; i < size; i++) {
     const T3DPointD A[2] = {
-        tangentLeft * B1(uPrime[i]), tangentRight * B2(uPrime[i]),
+        tangentLeft * B1(uPrime[i]),
+        tangentRight * B2(uPrime[i]),
     };
 
     C[0][0] += A[0] * A[0];
@@ -3655,10 +3756,10 @@ TThickCubic *TCubicStroke::generateCubic3D(const T3DPointD pointsArrayBegin[],
   double thickmax = -(numeric_limits<double>::max)();
 
   for (i = 0; i < size; i++) {
-    if (pointsArrayBegin[i].x < xmin) xmin         = pointsArrayBegin[i].x;
-    if (pointsArrayBegin[i].x > xmax) xmax         = pointsArrayBegin[i].x;
-    if (pointsArrayBegin[i].y < ymin) ymin         = pointsArrayBegin[i].y;
-    if (pointsArrayBegin[i].y > ymax) ymax         = pointsArrayBegin[i].y;
+    if (pointsArrayBegin[i].x < xmin) xmin = pointsArrayBegin[i].x;
+    if (pointsArrayBegin[i].x > xmax) xmax = pointsArrayBegin[i].x;
+    if (pointsArrayBegin[i].y < ymin) ymin = pointsArrayBegin[i].y;
+    if (pointsArrayBegin[i].y > ymax) ymax = pointsArrayBegin[i].y;
     if (pointsArrayBegin[i].z < thickmin) thickmin = pointsArrayBegin[i].z;
     if (pointsArrayBegin[i].z > thickmax) thickmax = pointsArrayBegin[i].z;
   }
@@ -3719,8 +3820,8 @@ TThickCubic *TCubicStroke::generateCubic3D(const T3DPointD pointsArrayBegin[],
   */
 //! Returns a stroke from a vector of TThickPoints
 /*!
-    Transforms an array of TThickPoints into an array of T3DPointDs 
-    which is used for a TCubicStroke, i.e. a cubic stroke. 
+    Transforms an array of TThickPoints into an array of T3DPointDs
+    which is used for a TCubicStroke, i.e. a cubic stroke.
     From this he finds the stroke quadratic.
 */
 TStroke *TStroke::interpolate(const vector<TThickPoint> &points, double error,

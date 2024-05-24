@@ -481,7 +481,8 @@ centralWidget->setLayout(centralWidgetLayout);*/
   setCommandHandler("MI_Undo", this, &MainWindow::onUndo);
   setCommandHandler("MI_Redo", this, &MainWindow::onRedo);
   setCommandHandler("MI_NewScene", this, &MainWindow::onNewScene);
-  setCommandHandler("MI_SaveSceneVersion", this, &MainWindow::onSaveSceneVersion);
+  setCommandHandler("MI_SaveSceneVersion", this,
+                    &MainWindow::onSaveSceneVersion);
   setCommandHandler("MI_LoadScene", this, &MainWindow::onLoadScene);
   setCommandHandler("MI_LoadSubSceneFile", this, &MainWindow::onLoadSubScene);
   setCommandHandler("MI_ResetRoomLayout", this, &MainWindow::resetRoomsLayout);
@@ -1309,7 +1310,7 @@ void MainWindow::onMenuCheckboxChanged() {
   else if (cm->getAction(MI_FieldGuide) == action)
     FieldGuideToggleAction = isChecked;
   else if (cm->getAction(MI_RasterizePli) == action) {
-//    if (!QOpenGLFramebufferObject::hasOpenGLPbuffers()) isChecked = 0;
+    //    if (!QOpenGLFramebufferObject::hasOpenGLPbuffers()) isChecked = 0;
     RasterizePliToggleAction = isChecked;
   } else if (cm->getAction(MI_SafeArea) == action)
     SafeAreaToggleAction = isChecked;
@@ -1389,9 +1390,10 @@ void MainWindow::onUpdateCheckerDone(bool error) {
     buttons.push_back(QObject::tr("Skip version"));
     buttons.push_back(QObject::tr("Cancel"));
     DVGui::MessageAndCheckboxDialog *dialog = DVGui::createMsgandCheckbox(
-        DVGui::INFORMATION, QObject::tr("Version %1 is now available.\n\nVisit "
-                                        "the Web site for more information.\n")
-                                .arg(latestVersionStr),
+        DVGui::INFORMATION,
+        QObject::tr("Version %1 is now available.\n\nVisit "
+                    "the Web site for more information.\n")
+            .arg(latestVersionStr),
         QObject::tr("Check for the latest version on launch."), buttons, 0,
         Qt::Checked);
     int ret = dialog->exec();
@@ -1821,7 +1823,8 @@ void MainWindow::defineActions() {
                        "save_scene_as",
                        tr("Save ONLY the scene with a new name.") + separator +
                            tr("This does NOT save levels or images."));
-  createMenuFileAction(MI_SaveSceneVersion, QT_TR_NOOP("&Save Scene Version..."), "",
+  createMenuFileAction(MI_SaveSceneVersion,
+                       QT_TR_NOOP("&Save Scene Version..."), "",
                        "save_scene_version",
                        tr("Increment scene version.") + separator +
                            tr("Add a number suffix if necessary."));
@@ -2411,16 +2414,16 @@ void MainWindow::defineActions() {
   createToggle(MI_VectorGuidedDrawing, QT_TR_NOOP("Vector Guided Tweening"), "",
                Preferences::instance()->isGuidedDrawingEnabled(),
                MenuViewCommandType, "view_guided_drawing");
-//  if (QOpenGLFramebufferObject::hasOpenGLPbuffers())
-    createToggle(MI_RasterizePli, QT_TR_NOOP("&Visualize Vector As Raster"), "",
-                 RasterizePliToggleAction ? 1 : 0, MenuViewCommandType,
-                 "view_vector_as_raster");
-//  else
-//    RasterizePliToggleAction = 0;
+  //  if (QOpenGLFramebufferObject::hasOpenGLPbuffers())
+  createToggle(MI_RasterizePli, QT_TR_NOOP("&Visualize Vector As Raster"), "",
+               RasterizePliToggleAction ? 1 : 0, MenuViewCommandType,
+               "view_vector_as_raster");
+  //  else
+  //    RasterizePliToggleAction = 0;
   createToggle(MI_ToggleLightTable, QT_TR_NOOP("Light Table"), "", false,
                MenuViewCommandType, "light_table");
-  createToggle(MI_CurrentDrawingOnTop, QT_TR_NOOP("Current Drawing On Top"), "", false,
-               MenuViewCommandType, "current_on_top");
+  createToggle(MI_CurrentDrawingOnTop, QT_TR_NOOP("Current Drawing On Top"), "",
+               false, MenuViewCommandType, "current_on_top");
 
   // Menu - Panes
 
@@ -2471,6 +2474,9 @@ void MainWindow::defineActions() {
                           "timeline");
   createMenuWindowsAction(MI_OpenComboViewer, QT_TR_NOOP("&ComboViewer"), "",
                           "comboviewer");
+  createMenuWindowsAction(MI_OpenVectorInspectorPanel,
+                          QT_TR_NOOP("Vector Inspector"), "",
+                          "vectorinspector");
   createMenuWindowsAction(MI_OpenHistoryPanel, QT_TR_NOOP("&History"), "Ctrl+H",
                           "history");
   createMenuWindowsAction(MI_AudioRecording, QT_TR_NOOP("Record Audio"),
@@ -2488,14 +2494,14 @@ void MainWindow::defineActions() {
                           QT_TR_NOOP("Guided Tweening Controls"), "",
                           "guided_drawing");
   createMenuWindowsAction(MI_OpenAlignmentPanel,
-                          QT_TR_NOOP("Align and Distribute Panel"), "",
-                          "");
+                          QT_TR_NOOP("Align and Distribute Panel"), "", "");
 
   createMenuAction(MI_OpenCustomPanels, QT_TR_NOOP("&Custom Panels"), files, "",
                    false);
   createMenuWindowsAction(MI_CustomPanelEditor,
                           QT_TR_NOOP("&Custom Panel Editor..."), "", "");
-  createMenuWindowsAction(MI_OpenLocator, QT_TR_NOOP("&Locator"), "", "locator");
+  createMenuWindowsAction(MI_OpenLocator, QT_TR_NOOP("&Locator"), "",
+                          "locator");
 
   // menuAct = createToggle(MI_DockingCheck, QT_TR_NOOP("&Lock Room Panes"), "",
   //                        DockingCheckToggleAction ? 1 : 0,

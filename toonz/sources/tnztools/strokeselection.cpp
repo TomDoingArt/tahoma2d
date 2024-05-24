@@ -566,7 +566,8 @@ StrokeSelection &StrokeSelection::operator=(const StrokeSelection &other) {
 //-----------------------------------------------------------------------------
 
 void StrokeSelection::select(int index, bool on) {
-  std::vector<int>::iterator it = std::find(m_indexes.begin(), m_indexes.end(), index);
+  std::vector<int>::iterator it =
+      std::find(m_indexes.begin(), m_indexes.end(), index);
   if (on) {
     if (it == m_indexes.end()) m_indexes.push_back(index);
   } else {
@@ -577,7 +578,8 @@ void StrokeSelection::select(int index, bool on) {
 //-----------------------------------------------------------------------------
 
 void StrokeSelection::toggle(int index) {
-  std::vector<int>::iterator it = std::find(m_indexes.begin(), m_indexes.end(), index);
+  std::vector<int>::iterator it =
+      std::find(m_indexes.begin(), m_indexes.end(), index);
   if (it == m_indexes.end())
     m_indexes.push_back(index);
   else
@@ -608,7 +610,7 @@ void StrokeSelection::removeEndpoints() {
     TStroke *s = m_vi->removeEndpoints(e, &offset);
     UndoVectorData undoStroke;
 
-    undoStroke.index   = e;
+    undoStroke.index     = e;
     undoStroke.oldStroke = s;
     undoStroke.offset    = offset;
 
@@ -644,7 +646,10 @@ void StrokeSelection::selectAll() {
 
   StrokeSelection *selection = dynamic_cast<StrokeSelection *>(
       TTool::getApplication()->getCurrentSelection()->getSelection());
-  if (selection) selection->notifyView();
+  if (selection) {
+    selection->notifyView();
+    emit selection->getImage()->selectedAllStrokes();
+  }
 }
 
 //=============================================================================
@@ -744,8 +749,8 @@ void StrokeSelection::paste() {
 
   TVectorImageP tarImg = TImageP(tool->touchImage());
   if (!tarImg) return;
-  TPaletteP palette       = tarImg->getPalette();
-  TPaletteP oldPalette    = new TPalette();
+  TPaletteP palette    = tarImg->getPalette();
+  TPaletteP oldPalette = new TPalette();
   if (palette) oldPalette = palette->clone();
   std::set<int> indexSet(m_indexes.begin(), m_indexes.end());
   bool isPaste = pasteStrokesWithoutUndo(tarImg, indexSet, m_sceneHandle);

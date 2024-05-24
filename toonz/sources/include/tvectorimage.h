@@ -4,12 +4,13 @@
 #define TVECTORIMAGE_INCLUDED
 
 #include <memory>
-
+#include <QObject>
 #include "timage.h"
 
 // da togliere spostando cose in altri file!!
 #include "traster.h"
 #include "tstream.h"
+#include <QStandardItemModel>
 
 #include <set>
 
@@ -55,7 +56,10 @@ class VIStroke;
     A vector image is a set of strokes and regions.
   \relates  TImage
 */
-class DVAPI TVectorImage final : public TImage {
+
+class DVAPI TVectorImage final : public QObject, public TImage {
+  Q_OBJECT
+
   class Imp;
   int pickGroup(const TPointD &pos, bool onEnteredGroup) const;
 
@@ -82,7 +86,7 @@ public:
   void validateRegions(bool state = false);
   //! Get valid regions flags
   /*! Call validateRegions() after region/stroke changes
-*/
+   */
   bool areValidRegions();
 
   //! Return a clone of image
@@ -113,6 +117,11 @@ public:
 
   //! Return the strokes' count
   UINT getStrokeCount() const;
+
+  //! Get a list of stroke data
+  void getStrokeListData(QObject *parent,
+                                        QAbstractItemModel *model);
+
   //! Get a \b TStroke stroke at index position
   TStroke *getStroke(UINT index) const;
   //! Get a \b VIStroke stroke at index position
@@ -306,7 +315,7 @@ get the stroke nearest at point
 
   /*! if enabled, region edges are joined together when possible. for flash
    * render, should be disabled!
-*/
+   */
   void enableMinimizeEdges(bool enabled);
   /*! Creates a new Image using the selected strokes. If removeFlag==true then
      removes selected strokes
@@ -317,11 +326,11 @@ get the stroke nearest at point
 
   //! Merge the image with the \b img.
   int mergeImage(const TVectorImageP &img, const TAffine &affine,
-                  bool sameStrokeId = true);
+                 bool sameStrokeId = true);
 
   int mergeImage(const TVectorImageP &img, const TAffine &affine,
-                  const std::map<int, int> &styleTable,
-                  bool sameStrokeId = true);
+                 const std::map<int, int> &styleTable,
+                 bool sameStrokeId = true);
   //! Merge the image with the vector of image \b images.
   void mergeImage(const std::vector<const TVectorImage *> &images);
 
@@ -362,7 +371,7 @@ regions. only ending parts are removed.
 If the entire stroke is not bounding any region, it is kept entitely.
 it returns the original stroke (for undo)*/
 
-  TStroke *removeEndpoints(int strokeIndex, double *offset=NULL);
+  TStroke *removeEndpoints(int strokeIndex, double *offset = NULL);
 
   /*! this method replaces  the stroke at index with oldstroke. Oldstroke is
   supposed to contain
@@ -395,6 +404,15 @@ existing stroke. this method is used for undoing removeEndpoints . */
 #endif
 
   int getStrokeIndexAtPos(TPointD pos, double maxDistance = 1);
+
+signals:
+  void enteredGroup();    // Signal for entering a group
+  void exitedGroup();     // Signal for exiting a group
+  void changedStrokes();  // Signal for strokes changed
+  void changedStrokeOrder(
+      int fromIndex, int count, int moveBefore,
+      bool regroup);          // Signal for strokes moved up/down the stack
+  void selectedAllStrokes();  // Signal for selected all strokes
 
 private:  // not implemented
   TVectorImage(const TVectorImage &);

@@ -339,8 +339,8 @@ void TopBar::loadMenubar() {
   }
   fileMenu->addSeparator();
   QMenu *importMenu = fileMenu->addMenu(tr("Import"));
-  { 
-    addMenuItem(importMenu, MI_ImportMagpieFile); 
+  {
+    addMenuItem(importMenu, MI_ImportMagpieFile);
     addMenuItem(importMenu, MI_ImportOCA);
   }
   QMenu *exportMenu = fileMenu->addMenu(tr("Export"));
@@ -694,6 +694,7 @@ void TopBar::loadMenubar() {
   addMenuItem(windowsMenu, MI_OpenGuidedDrawingControls);
   addMenuItem(windowsMenu, MI_OpenAlignmentPanel);
   addMenuItem(windowsMenu, MI_OpenCustomPanels);
+  addMenuItem(windowsMenu, MI_OpenVectorInspectorPanel);
   // windowsMenu->addSeparator();
   // addMenuItem(windowsMenu, MI_OpenExport);
   windowsMenu->addSeparator();

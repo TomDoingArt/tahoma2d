@@ -1,4 +1,4 @@
-
+#include "../../include/tvectorimage.h"
 
 #include "tcurves.h"
 // #include "tpalette.h"
@@ -16,6 +16,7 @@
 #include "tsimplecolorstyles.h"
 #include "tcomputeregions.h"
 
+#include <QStandardItemModel>
 #include <memory>
 
 //=============================================================================
@@ -225,8 +226,12 @@ void TVectorImage::Imp::moveStrokes(int fromIndex, int count, int moveBefore,
 
   std::vector<int> changedStrokes;
   if (regroup) regroupGhosts(changedStrokes);
-  if (!changedStrokes.empty())
+  if (!changedStrokes.empty()) {
     notifyChangedStrokes(changedStrokes, std::vector<TStroke *>(), false);
+  }
+  emit m_vi->changedStrokeOrder(
+      fromIndex, count, moveBefore,
+      regroup);  // notify that strokes have moved in the stack order
 }
 
 //-----------------------------------------------------------------------------
@@ -405,6 +410,27 @@ else
 //-----------------------------------------------------------------------------
 
 UINT TVectorImage::getStrokeCount() const { return m_imp->m_strokes.size(); }
+
+//--------------------------------------------------------------------
+
+void TVectorImage::getStrokeListData(QObject *parent,
+                                      QAbstractItemModel *model) {
+  // Clear the data while preserving headers
+  if (model->rowCount() > 0) {
+    model->removeRows(0, model->rowCount());
+  }
+
+  int currentGroup = 0;
+  if (m_imp->m_insideGroup.m_id.size() > 0) {
+    currentGroup = m_imp->m_insideGroup.m_id[0];
+  }
+
+  for (uint i = 0; i < (UINT)m_imp->m_strokes.size(); i++) {
+    // add vector chunk details
+    m_imp->m_strokes[i]->m_s->addChunkRows(
+        model, i, m_imp->m_strokes[i]->m_groupId.m_id, currentGroup);
+  }
+}
 
 //-----------------------------------------------------------------------------
 /*
@@ -593,7 +619,7 @@ TRectD TVectorImage::getBBox() const {
   for (UINT i = 0; i < strokeCount; ++i) {
     TStroke *stroke    = m_imp->m_strokes[i]->m_s;
     TColorStyle *style = 0;
-    if (plt) style     = plt->getStyle(m_imp->m_strokes[i]->m_s->getStyle());
+    if (plt) style = plt->getStyle(m_imp->m_strokes[i]->m_s->getStyle());
     if (!style) continue;
     // reimplemented in TRasterImagePatternStrokeStyle,
     // TVectorImagePatternStrokeStyle and FlowLineStrokeStyle
@@ -698,7 +724,7 @@ int TVectorImage::fillStrokes(const TPointD &p, int styleId) {
   double outW, dist2;
 
   if (getNearestStroke(p, outW, index, dist2, true)) {
-    double thick           = getStroke(index)->getThickPoint(outW).thick * 1.25;
+    double thick = getStroke(index)->getThickPoint(outW).thick * 1.25;
     if (thick < 0.5) thick = 0.5;
 
     if (dist2 > thick * thick) return -1;
@@ -1050,9 +1076,8 @@ bool TVectorImage::Imp::areWholeGroups(const std::vector<int> &indexes) const {
     if (!m_strokes[indexes[i]]->m_groupId.isGrouped()) return false;
     for (j = 0; j < m_strokes.size(); j++) {
       int ret = areDifferentGroup(indexes[i], false, j, false);
-      if (ret == -1 ||
-          (ret >= 1 &&
-           find(indexes.begin(), indexes.end(), j) == indexes.end()))
+      if (ret == -1 || (ret >= 1 && find(indexes.begin(), indexes.end(), j) ==
+                                        indexes.end()))
         return false;
     }
   }
@@ -1099,7 +1124,7 @@ void TVectorImage::Imp::notifyChangedStrokes(
 
     std::list<TEdge *>::iterator it = s->m_edgeList.begin();
     for (; it != s->m_edgeList.end(); it++) {
-      TEdge *e                            = new TEdge(**it, false);
+      TEdge *e = new TEdge(**it, false);
       if (!oldStrokeArray.empty()) e->m_s = oldStrokeArray[i];
       oldEdgeListArray[i].push_back(e);  // bisogna allocare nuovo edge,
                                          // perche'la eraseIntersection poi lo
@@ -1127,6 +1152,7 @@ void TVectorImage::Imp::notifyChangedStrokes(
 #ifdef _DEBUG
   checkIntersections();
 #endif
+  emit m_vi->changedStrokes();
 }
 
 //-----------------------------------------------------------------------------
@@ -1237,7 +1263,7 @@ VIStroke::VIStroke(const VIStroke &s, bool sameId)
 //-----------------------------------------------------------------------------
 
 int TVectorImage::mergeImage(const TVectorImageP &img, const TAffine &affine,
-                              bool sameStrokeId) {
+                             bool sameStrokeId) {
   QMutexLocker sl(m_imp->m_mutex);
 
 #ifdef _DEBUG
@@ -1266,8 +1292,8 @@ int TVectorImage::mergeImage(const TVectorImageP &img, const TAffine &affine,
 //-----------------------------------------------------------------------------
 
 int TVectorImage::mergeImage(const TVectorImageP &img, const TAffine &affine,
-                              const std::map<int, int> &styleTable,
-                              bool sameStrokeId) {
+                             const std::map<int, int> &styleTable,
+                             bool sameStrokeId) {
   int imageSize = img->getStrokeCount();
   if (imageSize == 0) return 0;
   QMutexLocker sl(m_imp->m_mutex);
@@ -2048,7 +2074,8 @@ TStroke *TVectorImage::removeEndpoints(int strokeIndex, double *offset) {
   return m_imp->removeEndpoints(strokeIndex, offset);
 }
 
-void TVectorImage::restoreEndpoints(int index, TStroke *oldStroke, double offset) {
+void TVectorImage::restoreEndpoints(int index, TStroke *oldStroke,
+                                    double offset) {
   m_imp->restoreEndpoints(index, oldStroke, offset);
 }
 
@@ -2088,7 +2115,7 @@ VIStroke *TVectorImage::Imp::extendStrokeSmoothly(int index,
   }
 
   std::vector<TThickPoint> points(cpCount);
-  for (int i  = 0; i < cpCount - 1; i++)
+  for (int i = 0; i < cpCount - 1; i++)
     points[i] = stroke->getControlPoint((cpIndex == 0) ? cpCount - i - 1 : i);
   points[cpCount - 1] = pos;
 
@@ -2245,12 +2272,12 @@ VIStroke *TVectorImage::Imp::joinStrokeSmoothly(int index1, int index2,
   double len1 = q1->getLength();
   assert(len1 >= 0);
   if (len1 <= 0) len1 = 0;
-  double w1           = exp(-len1 * 0.01);
+  double w1 = exp(-len1 * 0.01);
 
   double len2 = q2->getLength();
   assert(len2 >= 0);
   if (len2 <= 0) len2 = 0;
-  double w2           = exp(-len2 * 0.01);
+  double w2 = exp(-len2 * 0.01);
 
   TThickPoint extreme1 = cpIndex1 == 0 ? q1->getThickP0() : q1->getThickP2();
   TThickPoint extreme2 = cpIndex2 == 0 ? q2->getThickP0() : q2->getThickP2();
@@ -2481,7 +2508,7 @@ int TVectorImage::ungroup(int fromIndex) {
 
   std::vector<int> outerGroups = m_imp->m_insideGroup.m_id;
   std::vector<int> groupIds    = m_imp->m_strokes[fromIndex]->m_groupId.m_id;
-  for (int x        = 0; x < outerGroups.size(); x++) groupIds.pop_back();
+  for (int x = 0; x < outerGroups.size(); x++) groupIds.pop_back();
   int removeGroupId = groupIds.back();
 
   int toIndex = fromIndex + 1;
@@ -2553,6 +2580,9 @@ bool TVectorImage::enterGroup(int index) {
   if (newGroupId == m_imp->m_insideGroup) return false;
 
   m_imp->m_insideGroup = newGroupId;
+
+  emit enteredGroup();
+
   return true;
 }
 
@@ -2573,6 +2603,9 @@ int TVectorImage::exitGroup() {
   assert(i != m_imp->m_strokes.size());
 
   m_imp->m_insideGroup = m_imp->m_insideGroup.getParent();
+
+  emit exitedGroup();
+
   return ret;
 }
 
@@ -2867,25 +2900,25 @@ bool TVectorImage::Imp::canMoveStrokes(int strokeIndex, int count,
 
   std::vector<TGroupId> groupsAfterMoving(m_strokes.size());
   if (strokeIndex < moveBefore) {
-    for (i                   = 0; i < strokeIndex; i++)
+    for (i = 0; i < strokeIndex; i++)
       groupsAfterMoving[j++] = m_strokes[i]->m_groupId;
 
-    for (i                   = strokeIndex + count; i < moveBefore; i++)
+    for (i = strokeIndex + count; i < moveBefore; i++)
       groupsAfterMoving[j++] = m_strokes[i]->m_groupId;
 
-    for (i                   = strokeIndex; i < strokeIndex + count; i++)
+    for (i = strokeIndex; i < strokeIndex + count; i++)
       groupsAfterMoving[j++] = m_strokes[i]->m_groupId;
 
-    for (i                   = moveBefore; i < (int)m_strokes.size(); i++)
+    for (i = moveBefore; i < (int)m_strokes.size(); i++)
       groupsAfterMoving[j++] = m_strokes[i]->m_groupId;
   } else {
-    for (i                   = 0; i < moveBefore; i++)
+    for (i = 0; i < moveBefore; i++)
       groupsAfterMoving[j++] = m_strokes[i]->m_groupId;
 
-    for (i                   = strokeIndex; i < strokeIndex + count; i++)
+    for (i = strokeIndex; i < strokeIndex + count; i++)
       groupsAfterMoving[j++] = m_strokes[i]->m_groupId;
 
-    for (i                   = moveBefore; i < strokeIndex; i++)
+    for (i = moveBefore; i < strokeIndex; i++)
       groupsAfterMoving[j++] = m_strokes[i]->m_groupId;
 
     for (i = strokeIndex + count; i < (int)m_strokes.size(); i++)
