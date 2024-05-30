@@ -28,6 +28,13 @@
 
 #include <QtWidgets>
 
+// includes for color style changed notification - begin
+#include "toonz/palettecontroller.h"
+#include "toonz/tpalettehandle.h"
+// includes for color style changed notification - end
+
+const bool debugging = true;
+
 QStandardItemModel *sourceModel;
 //------------------------------------------------------------------------------
 
@@ -233,6 +240,32 @@ void VectorInspectorPanel::onLevelSwitched() {
     // to prevent multiple connections, try to disconnect first in case
     // already connected previously.
 
+
+
+    //TColorStyle* currentColorStyle = TApp::instance()->getCurrentLevelStyle();
+    //  connect(m_paletteHandle, SIGNAL(colorStyleSwitched()),
+    //SLOT(onColorStyleSwitched()));
+
+    //TPaletteHandle *m_paletteHandle = TApp::instance()->getPaletteController()->getCurrentLevelPalette();
+    //connect(m_paletteHandle, SIGNAL(colorStyleSwitched()),
+    //  SLOT(onColorStyleSwitched()));
+    //connect(m_paletteHandle, SIGNAL(paletteSwitched()),
+    //  SLOT(onPaletteSwitched()));
+
+    //TApp* app = TApp::instance();
+    ////m_paletteViewer = new PaletteViewer(this, PaletteViewerGUI::LEVEL_PALETTE);
+    //m_paletteViewer->setPaletteHandle(
+    //  app->getPaletteController()->getCurrentLevelPalette());
+    
+    QObject::disconnect(TApp::instance()->getPaletteController()->getCurrentLevelPalette(),
+      &TPaletteHandle::colorStyleSwitched, this,
+      &VectorInspectorPanel::onColorStyleSwitched);
+    
+    QObject::connect(TApp::instance()->getPaletteController()->getCurrentLevelPalette(),
+      &TPaletteHandle::colorStyleSwitched, this,
+      &VectorInspectorPanel::onColorStyleSwitched);
+
+
     QObject::disconnect(TApp::instance()->getCurrentSelection(),
                         &TSelectionHandle::selectionChanged, this,
                         &VectorInspectorPanel::onSelectionChanged);
@@ -353,7 +386,9 @@ void VectorInspectorPanel::onLevelSwitched() {
 
 //-------------------------------------------------------------------------------------------------
 void VectorInspectorPanel::onSelectionSwitched(TSelection *selectionFrom,
-                                               TSelection *selectionTo) {}
+                                               TSelection *selectionTo) {
+  if (debugging) recordEvent("VectorInspectorPanel::onSelectionSwitched");
+}
 
 //-------------------------------------------------------------------------------------------------
 void VectorInspectorPanel::setRowHighlighting() {
@@ -423,6 +458,7 @@ bool VectorInspectorPanel::isSelected(int index) const {
 //-------------------------------------------------------------------------------------------------
 
 void VectorInspectorPanel::onSelectionChanged() {
+  if (debugging) recordEvent("VectorInspectorPanel::onSelectionChanged");
   if (initiatedByVectorInspector) {
   } else {
     initiatedBySelectTool = true;
@@ -530,6 +566,7 @@ void VectorInspectorPanel::showContextMenu(const QPoint &pos) {
 }
 
 void VectorInspectorPanel::onEnteredGroup() {
+  if (debugging) recordEvent("VectorInspectorPanel::onEnteredGroup");
   m_vectorImage->getStrokeListData(parentWidget(), sourceModel);
   setSourceModel(sourceModel);
   proxyModel->invalidate();
@@ -537,18 +574,22 @@ void VectorInspectorPanel::onEnteredGroup() {
 }
 
 void VectorInspectorPanel::onExitedGroup() {
+  if (debugging) recordEvent("VectorInspectorPanel::onExitedGroup");
   m_vectorImage->getStrokeListData(parentWidget(), sourceModel);
   setSourceModel(sourceModel);
   setRowHighlighting();
 }
 
 void VectorInspectorPanel::onChangedStrokes() {
+  if (debugging) recordEvent("VectorInspectorPanel::onChangedStrokes");
   m_vectorImage->getStrokeListData(parentWidget(), sourceModel);
   setSourceModel(sourceModel);
   setRowHighlighting();
 }
 
-void VectorInspectorPanel::onToolEditingFinished() {}
+void VectorInspectorPanel::onToolEditingFinished() {
+  if (debugging) recordEvent("VectorInspectorPanel::onToolEditingFinished");
+}
 
 void VectorInspectorPanel::onSceneChanged() {}
 
@@ -645,6 +686,7 @@ void VectorInspectorPanel::onStrokeOrderChanged(int fromIndex, int count,
 }
 
 void VectorInspectorPanel::onToolSwitched() {
+  if (debugging) recordEvent("VectorInspectorPanel::onToolSwitched");
   QObject::disconnect(TApp::instance()->getCurrentTool(),
                       &ToolHandle::toolEditingFinished, this,
                       &VectorInspectorPanel::onToolEditingFinished);
@@ -659,6 +701,7 @@ void VectorInspectorPanel::onToolSwitched() {
 void VectorInspectorPanel::onSelectedAllStrokes() { setRowHighlighting(); }
 
 void VectorInspectorPanel::onSelectedStroke(const QModelIndex &index) {
+  if (debugging) recordEvent("VectorInspectorPanel::onSelectedStroke");
   selectingRowsForStroke = true;
   setRowHighlighting();
   selectingRowsForStroke = false;
@@ -666,6 +709,7 @@ void VectorInspectorPanel::onSelectedStroke(const QModelIndex &index) {
 
 void VectorInspectorPanel::onVectorInspectorSelectionChanged(
     const QItemSelection &selected, const QItemSelection &deselected) {
+  if (debugging) recordEvent("VectorInspectorPanel::onVectorInspectorSelectionChanged");
   // Handle the selection changed event
   if (strokeOrderChangedInProgress) {
   } else if (initiatedBySelectTool) {
@@ -733,4 +777,12 @@ void VectorInspectorPanel::changeWindowTitle() {
       "  ::  Frame : " + QString::fromStdString(frameNumber);
 
   parentWidget()->setWindowTitle(name);
+}
+
+void VectorInspectorPanel::recordEvent(const char* eventDescription) {
+  qDebug() << "Event recorded:" << eventDescription;
+}
+
+void VectorInspectorPanel::onColorStyleSwitched() {
+  if (debugging) recordEvent("VectorInspectorPanel::onColorStyleSwitched");
 }

@@ -99,6 +99,8 @@ private:
   bool isSelected(int) const;
   bool selectingRowsForStroke;
   void changeWindowTitle();
+  void recordEvent(const char*);
+  void onColorStyleSwitched();
 };
 
 #endif  // VECTORINSPECTOR_H

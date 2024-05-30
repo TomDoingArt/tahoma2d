@@ -150,6 +150,7 @@ void TPaletteHandle::setPalette(TPalette *palette, int styleIndex) {
 
     emit paletteSwitched();
     // to let ToonzCheck to update the current index
+    std::cout << "TPaletteHandle::setPalette" << std::endl;
     emit broadcastColorStyleSwitched();
   }
 }
@@ -164,6 +165,7 @@ void TPaletteHandle::setStyleIndex(int index, bool forceEmit) {
     if (m_palette) m_palette->setCurrentStyleId(index);
     m_styleIndex      = index;
     m_styleParamIndex = 0;
+    std::cout << "TPaletteHandle::setStyleIndex" << std::endl;
     emit broadcastColorStyleSwitched();
   }
 }
@@ -173,6 +175,7 @@ void TPaletteHandle::setStyleIndex(int index, bool forceEmit) {
 void TPaletteHandle::setStyleParamIndex(int index) {
   if (m_styleParamIndex != index) {
     m_styleParamIndex = index;
+    std::cout << "TPaletteHandle::setStyleParamIndex" << std::endl;
     emit broadcastColorStyleSwitched();
   }
 }
@@ -190,6 +193,7 @@ void TPaletteHandle::notifyPaletteTitleChanged() {
 //-----------------------------------------------------------------------------
 
 void TPaletteHandle::notifyColorStyleSwitched() {
+  std::cout << "TPaletteHandle::notifyColorStyleSwitched" << std::endl;
   emit broadcastColorStyleSwitched();
 }
 
@@ -199,10 +203,13 @@ void TPaletteHandle::notifyColorStyleChanged(bool onDragging,
                                              bool setDirtyFlag) {
   if (setDirtyFlag && getPalette() && !getPalette()->getDirtyFlag())
     getPalette()->setDirtyFlag(true);
-
+  std::cout << "TPaletteHandle::notifyColorStyleChanged, broadcastColorStyleChanged" << std::endl;
   emit broadcastColorStyleChanged(onDragging);
 
-  if (!onDragging) emit broadcastColorStyleChangedOnMouseRelease();
+  if (!onDragging) {
+    std::cout << "TPaletteHandle::notifyColorStyleChanged, broadcastColorStyleChangedOnMouseRelease" << std::endl;
+    emit broadcastColorStyleChangedOnMouseRelease();
+  }
 }
 
 //-----------------------------------------------------------------------------
