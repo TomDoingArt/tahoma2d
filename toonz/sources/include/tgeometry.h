@@ -664,6 +664,11 @@ TRectI  is empty if x0>x1 || y0>y1 */
   };
 
   bool overlaps(const TRectT<T> &b) const {
+    // temporary debug statements added by TomDoingArt
+    //std::cout << x0 << " <= " << b.x1 << " AND ";
+    //std::cout << x1 << " >= " << b.x0 << " AND ";
+    //std::cout << y0 << " <= " << b.y1 << " AND ";
+    //std::cout << y1 << " >= " << b.y0 << " is " << (x0 <= b.x1 && x1 >= b.x0 && y0 <= b.y1 && y1 >= b.y0) << "\n";
     return x0 <= b.x1 && x1 >= b.x0 && y0 <= b.y1 && y1 >= b.y0;
   };
 

@@ -12,11 +12,14 @@
 #include "tropcm.h"
 #include "trasterimage.h"
 #include "tvectorimage.h"
+#include "../../sources/common/tvectorimage/tvectorimageP.h"
 #include "tmeshimage.h"
 #include "tcolorstyles.h"
 #include "timage_io.h"
 #include "tregion.h"
 #include "toonz/toonzscene.h"
+
+#include "tcurves.h"
 
 // TnzBase includes
 #include "tenv.h"
@@ -61,6 +64,11 @@
 #include <QGuiApplication>
 
 #include "toonz/stagevisitor.h"
+#include "../common/tvectorimage/tvectorimageP.h"
+
+bool debug_mode = false;  // Set to false to disable debug output
+#define DEBUG_LOG(x) if (debug_mode) std::cout << x // << std::endl
+
 
 //**********************************************************************************************
 //    Stage namespace
@@ -735,6 +743,8 @@ static void buildAutocloseImage(
     TVectorImage *vaux, TVectorImage *vi,
     const std::vector<std::pair<int, double>> &startPoints,
     const std::vector<std::pair<int, double>> &endPoints) {
+  DEBUG_LOG("buildAutocloseImage\n");
+  //std::cout << "buildAutocloseImage\n";
   for (UINT i = 0; i < startPoints.size(); i++) {
     TThickPoint p1 = vi->getStroke(startPoints[i].first)
                          ->getThickPoint(startPoints[i].second);
@@ -774,6 +784,1077 @@ static void drawAutocloses(TVectorImage *vi, TVectorRenderData &rd) {
   // restore original value
   rd.m_tcheckEnabled = tCheckEnabledOriginal;
   delete vaux;
+}
+
+//-----------------------------------------------------------------------------
+
+  std::pair<double, double> extendQuadraticBezier(std::pair<double, double> P0,
+                                                std::pair<double, double> P1,
+                                                std::pair<double, double> P2,
+                                                double L,
+                                                bool reverse = false) {
+  double dx, dy, length, unit_dx, unit_dy, x3, y3;
+
+  if (reverse) {
+    // Calculate the tangent vector at the start point P0
+    dx = P1.first - P0.first;
+    dy = P1.second - P0.second;
+  } else {
+    // Calculate the tangent vector at the endpoint P2
+    dx = P2.first - P1.first;
+    dy = P2.second - P1.second;
+  }
+
+  // Calculate the magnitude of the tangent vector
+  length = sqrt(dx * dx + dy * dy);
+
+  // Normalize the tangent vector
+  unit_dx = dx / length;
+  unit_dy = dy / length;
+
+  if (reverse) {
+    // Calculate the new start point P3 by extending in the reverse direction
+    x3 = P0.first - L * unit_dx;
+    y3 = P0.second - L * unit_dy;
+  } else {
+    // Calculate the new endpoint P3 by extending in the forward direction
+    x3 = P2.first + L * unit_dx;
+    y3 = P2.second + L * unit_dy;
+  }
+
+  return std::make_pair(x3, y3);
+}
+
+//-----------------------------------------------------------------------------
+
+  // Define a struct to hold the intersection data
+  struct Intersection {
+    UINT s1Index;
+    bool s2IsExtension;
+    UINT s2Index;
+    double w;
+    double x;
+    double y;
+    int survives;
+  };
+
+
+  void determineSurvivingIntersections(std::vector<Intersection>& intersections, std::vector<Intersection>& uniqueIntersections) {
+
+    //Preparation: sort the list in s1 and W order.
+    //All rows should have survivor value of 0 as default, meaning unknown.
+
+    //Store a value for currentS1Index to keep track of when the s1Index changes.
+    UINT currentS1Index;
+    bool markRemainingNonSurviving = false;
+
+    //First Pass =================================================================================================================
+
+    // Resolve all intersections that do not have dependency on other intersections.
+    for (auto& inter : intersections) {
+      //	Is this the first row for this s1Index? 
+      if (inter.s1Index != currentS1Index) {
+        // Yes, this is the first row
+        // Update currentS1Index.
+        currentS1Index = inter.s1Index;
+        // set markRemainingNonSurviving flag off.
+        markRemainingNonSurviving = false;
+
+        //The first record processed is the lowest W value for the first s1Index.
+        //			Is s2 a line?
+        if (!inter.s2IsExtension) {
+          //	Yes
+          //		s1 is lowest W value, s2 is a line - unambiguous survivor.
+          //		mark as survivor = 1
+          inter.survives = 1;
+          //		mark remaining rows for this s1 as survivor = -1
+          markRemainingNonSurviving = true;
+        }
+        else { // No, s2 is not a line
+         // Is s2 the lowest W value for that index?
+          auto it =
+            std::find_if(uniqueIntersections.begin(), uniqueIntersections.end(),
+              [&inter](const Intersection& uniqueInter) {
+                return uniqueInter.s1Index == inter.s2Index && uniqueInter.s2Index == inter.s1Index;
+              });
+
+          if (it != uniqueIntersections.end()) {
+            //Yes, lowest W for s2
+            //	s1 is lowest W value, s2 is lowest W value - unambiguous survivor.
+            // ====================================== check the length of the final gap close line that it is within gap distance ==========================
+            //	mark as survivor = 1
+            inter.survives = 1;
+            //	mark remaining rows for this s1 as survivor = -1
+            markRemainingNonSurviving = true;
+          }
+          else {
+            //No, not lowest W for s2
+            //indeterminate outcome in First Pass, wait for Second Pass
+          }
+        }
+      }
+      else { // No, not the first row for this s1Index.
+        // Is the markRemainingNonSurviving flag set?
+        if (markRemainingNonSurviving) {
+          //	Yes
+          //	cannot be a survivor, mark as survivor = -1.
+          inter.survives = -1;
+
+          // mark the corresponding s2 row as well
+          auto it =
+            std::find_if(intersections.begin(), intersections.end(),
+              [&inter](Intersection& inter2) {
+                return inter2.s1Index == inter.s2Index && inter2.s2Index == inter.s1Index;
+              });
+
+          if (it != intersections.end()) {
+
+            it->survives = -1;
+          }
+          /*
+          else {
+            //				No, the markRemainingNonSurviving flag is not set
+            //					Cannot prove unambiguous survivor, see if it is a survivor anyway…
+                // Is s2 a line?
+            if (!inter.s2IsExtension) {
+              //						Yes
+              //							Cannot be a survivor, mark as survivor = -1
+              inter.survives = -1;
+            }
+            else {
+              //	No, s2 is not a line
+              //  	Is s2 its lowest W value?
+              auto it =
+                std::find_if(uniqueIntersections.begin(), uniqueIntersections.end(),
+                  [&inter](const Intersection& uniqueInter) {
+                    return uniqueInter.s1Index == inter.s2Index && uniqueInter.s2Index == inter.s1Index;
+                  });
+
+              if (it != uniqueIntersections.end()) {
+
+                //Yes, s2 is its lowest W value
+                //	s1 not lowest W value, s2 is lowest W value - survivor.
+                //	mark as survivor = 1
+                inter.survives = 1;
+                //	mark remaining rows for this s1 as survivor = -1
+                //	set markRemainingNonSurviving flag on.
+                markRemainingNonSurviving = true;
+              }
+              else {
+                //
+                //	No, neither s1 nor s2 are at their lowest W value
+                //	cannot be a survivor, mark as survivor = -1.
+                inter.survives = -1;
+              }
+            }
+          }
+          */
+        }
+      }
+    }
+
+      //std::cout << "Pass 1 Results:" << "\n";
+      DEBUG_LOG("Pass 1 Results:" << "\n");
+      for (const auto& currIntersection : intersections) {
+        //std::cout << "Intersection s1:" << currIntersection.s1Index << " isExt:" << currIntersection.s2IsExtension << " s2:" << currIntersection.s2Index << " w:" << currIntersection.w << " x:" << currIntersection.x << " y:" << currIntersection.y << " survives:" << currIntersection.survives << "\n";
+        DEBUG_LOG("Intersection s1:" << currIntersection.s1Index << " isExt:" << currIntersection.s2IsExtension << " s2:" << currIntersection.s2Index << " s2W:" << currIntersection.w << " x:" << currIntersection.x << " y:" << currIntersection.y << " survives:" << currIntersection.survives << "\n");
+      }
+
+
+      currentS1Index = -1;
+      markRemainingNonSurviving = false;
+
+      //Second Pass - resolve all unresolved intersections.  ======================================================================================
+      for (auto& inter : intersections) {
+        //std::cout << inter.s1Index << " - " << inter.s2Index << ", s2IsExtension:" << inter.s2IsExtension << "\n";
+        DEBUG_LOG(inter.s1Index << " - " << inter.s2Index << ", s2IsExtension:" << inter.s2IsExtension << "\n");
+        //	Is this the first row for this s1Index? 
+        if (inter.s1Index != currentS1Index) {
+          // Yes, this is the first row
+          // Update currentS1Index.
+          currentS1Index = inter.s1Index;
+          // set markRemainingNonSurviving flag off.
+          markRemainingNonSurviving = false;
+
+
+          if(inter.survives == 0){
+
+          //The first record processed is the lowest W value for the first s1Index.
+          //			Is s2 a line?
+          if (!inter.s2IsExtension) {
+            //	Yes
+            //		s1 is lowest W value, s2 is a line - unambiguous survivor.
+            //		mark as survivor = 1
+            inter.survives = 1;
+            //		mark remaining rows for this s1 as survivor = -1
+            markRemainingNonSurviving = true;
+          }
+          else { // No, s2 is not a line
+           // Is s2 the lowest W value for that index?
+            auto it =
+              std::find_if(uniqueIntersections.begin(), uniqueIntersections.end(),
+                [&inter](const Intersection& uniqueInter) {
+                  return uniqueInter.s1Index == inter.s2Index && uniqueInter.s2Index == inter.s1Index;
+                });
+
+            if (it != uniqueIntersections.end()) { //row found
+              //Yes, lowest W for s2
+              //	s1 is lowest W value, s2 is lowest W value - unambiguous survivor.
+              //	mark as survivor = 1
+
+              // does the corresponding s2 row survive?
+              auto it2 =
+                std::find_if(intersections.begin(), intersections.end(),
+                  [&inter](Intersection& inter2) {
+                    return inter2.s1Index == inter.s2Index && inter2.s2Index == inter.s1Index;
+                  });
+
+              if (it2 != uniqueIntersections.end()) {
+
+                if (it2->survives == -1) {
+                  inter.survives = -1;
+                  //std::cout << "I am lowest W for s1, " << it->s1Index << " - " << it->s2Index << " is not surviving:" << it->survives << " so I am non-surviving." << "\n";
+                  DEBUG_LOG("I am lowest W for s1, " << it->s1Index << " - " << it->s2Index << " is not surviving:" << it->survives << " so I am non-surviving." << "\n");
+                }
+                else { //survives is 0 or 1
+                  inter.survives = 1;
+                  //	mark remaining rows for this s1 as survivor = -1
+                  markRemainingNonSurviving = true;
+                }
+              }
+            }
+            else { //No, not found in uniqueIntersectiosn so not lowest W for s2
+              //std::cout << "I am first row for s1, not lowest W for s2, so " << "\n";
+              DEBUG_LOG("I am first row for s1, not lowest W for s2, so " << "\n");
+              // is my corresponding row a survivor?
+              auto it2 =
+                std::find_if(intersections.begin(), intersections.end(),
+                  [&inter](const Intersection& inter2) {
+                    return inter2.s1Index == inter.s2Index && inter2.s2Index == inter.s1Index;
+                  });
+              if (it2 != intersections.end()) {
+                if (it2->survives == -1){ // s2 was marked as non survivor
+                  inter.survives = -1;
+                }else if (it2->survives == 1){ // s2 was marked as survivor
+                  inter.survives = 1;
+                  markRemainingNonSurviving = true;
+                }
+                else if (it2->survives == 0) { // s2 was default 0
+                  inter.survives = 1;
+                  it2->survives = 1; // mark my s2 intersection
+                  markRemainingNonSurviving = true;
+                }
+              }
+            }
+          }
+
+          }
+          else {
+            //std::cout << "already processed, first row, , survives is: " << inter.survives << "\n";
+            DEBUG_LOG("already processed, first row, , survives is: " << inter.survives << "\n");
+          }
+
+
+
+
+        }  //end for yes, first row of s1
+        else { // No, not the first row for this s1Index.
+          // Is the markRemainingNonSurviving flag set?
+
+          if (inter.survives == 0) {
+
+          if (markRemainingNonSurviving) {
+            //	Yes
+            //	cannot be a survivor, mark as survivor = -1.
+            //std::cout << "markRemainingNonSurviving:" << markRemainingNonSurviving << " so I am non-surviving." << "\n";
+            DEBUG_LOG("markRemainingNonSurviving:" << markRemainingNonSurviving << " so I am non-surviving." << "\n");
+            inter.survives = -1;
+            if (inter.s2IsExtension) { // for extension intersections...
+            // set the corresponding s2 row.
+              auto it =
+                std::find_if(intersections.begin(), intersections.end(),
+                  [&inter](const Intersection& inter2) {
+                    return inter2.s1Index == inter.s2Index && inter2.s2Index == inter.s1Index;
+                  });
+              if (it != intersections.end()) {
+                it->survives = -1;
+                //std::cout << "set my corresponding s2 row " << it->s1Index << "-" << it->s2Index << " to non-surviving." << "\n";
+                DEBUG_LOG("set my corresponding s2 row " << it->s1Index << "-" << it->s2Index << " to non-surviving." << "\n");
+              }
+            }
+          }
+          else { //	No, the markRemainingNonSurviving flag is not set
+            // Cannot prove unambiguous survivor, see if it is a survivor anyway…
+            // Is s2 a line?
+            if (!inter.s2IsExtension) {
+              //						Yes
+              //							Cannot be a survivor with s1 not lowest W, mark as survivor = -1
+              inter.survives = -1;
+              //std::cout << "!inter.s2IsExtension:" << !inter.s2IsExtension << " a line, so I am non-surviving." << "\n";
+              DEBUG_LOG("!inter.s2IsExtension:" << !inter.s2IsExtension << " a line, so I am non-surviving." << "\n");
+            }
+            else {
+              //	No, s2 is not a line
+              //  ** prior logic:	Is s2 its lowest W value?
+              // Find the intersection from s2 direction, don't care about is it first row for that stroke or not.
+              auto it =
+                std::find_if(intersections.begin(), intersections.end(),
+                  [&inter](const Intersection& inter2) {
+                    return inter2.s1Index == inter.s2Index && inter2.s2Index == inter.s1Index;
+                  });
+
+              if (it != intersections.end()) { //row found
+                // Is it already marked as non-surviving?
+                if (it->survives == -1) { // is my corresponding row not a survivor?
+                  //	s2 is not a survivor so neither am I								
+                  //	No, neither s1 nor s2 are at their lowest W value
+                  //	cannot be a survivor, mark as survivor = -1.
+                  inter.survives = -1;
+                  //std::cout << it->s1Index << " - " << it->s2Index << " is not surviving:" << it->survives << " so I am non-surviving." << "\n";
+                  DEBUG_LOG(it->s1Index << " - " << it->s2Index << " is not surviving:" << it->survives << " so I am non-surviving." << "\n");
+                }
+                else { // corresponding row is a survivor or unconfirmed, so I am a survivor
+                  // Do I need logic to determine if the intersected line row is the first surviving row for the stroke?
+                  // Here I am assuming that if it is no already marked as non-surviving it is candidate for being a survivor.
+                  //	**** Prior logic was: s1 not lowest W value, s2 is lowest W value - survivor.
+                  //	mark as survivor = 1
+                  inter.survives = 1;
+                  // s2 also survives
+                  it->survives = 1;
+                  //	mark remaining rows for this s1 as survivor = -1
+                  //	set markRemainingNonSurviving flag on.
+                  markRemainingNonSurviving = true;
+                  //std::cout << "mark as survivor, and set all remaining rows as non-survivors" << "\n";
+                  DEBUG_LOG("mark as survivor, and set all remaining rows as non-survivors" << "\n");
+
+                }
+              }
+              else {
+                //std::cout << "Corresponding row " << inter.s2Index << "-" << inter.s1Index << " not found" << "\n";
+                DEBUG_LOG("Corresponding row " << inter.s2Index << "-" << inter.s1Index << " not found" << "\n");
+              }
+            }
+          }
+          }
+          else {
+            //std::cout << "already processed, not first row, survives is: " << inter.survives << "\n";
+            DEBUG_LOG("already processed, not first row, survives is: " << inter.survives << "\n");
+          }
+        }
+      }
+    
+    //std::cout << "Pass 2 Results:" << "\n";
+    DEBUG_LOG("Pass 2 Results:" << "\n");
+    for (const auto& currIntersection : intersections) {
+      //std::cout << "Intersection s1:" << currIntersection.s1Index << " isExt:" << currIntersection.s2IsExtension << " s2:" << currIntersection.s2Index << " w:" << currIntersection.w << " x:" << currIntersection.x << " y:" << currIntersection.y << " survives:" << currIntersection.survives << "\n";
+      DEBUG_LOG("Intersection s1:" << currIntersection.s1Index << " isExt:" << currIntersection.s2IsExtension << " s2:" << currIntersection.s2Index << " s2W:" << currIntersection.w << " x:" << currIntersection.x << " y:" << currIntersection.y << " survives:" << currIntersection.survives << "\n");
+    }
+  }
+
+/*
+bool isSurvivingIntersection(std::vector<Intersection>&intersections, 
+  std::vector<Intersection>& uniqueIntersections, 
+  Intersection& currIntersection) {
+
+  // take in a row from intersections, decide if it is a surviving intersection.
+  // check the list of confirmed surviving intersections.
+  // Confirmed? return true.
+  //
+  // unambiguous terminating conditions:
+  //    s1 and s2 are their lowest W values, a perfect intersection.
+  //    s1 is its lowest W value and s2 is a normal line, a perfect intersection.
+  // 
+  // If determined an intersection survives? 
+  //     then add to the confirmed surviving intersections list.
+  // 
+  // No terminating condition? 
+  //     s2 is not a confirmed intersection.
+  //     make a recursive call until a terminating condition is reached.
+
+  UINT s1Index = currIntersection.s1Index;
+  bool s2IsExtension = currIntersection.s2IsExtension;
+  UINT s2Index = currIntersection.s2Index;
+  double w = currIntersection.w;
+  double x = currIntersection.x;
+  double y = currIntersection.y;
+  int survives = currIntersection.survives;
+
+  auto it =
+      std::find_if(uniqueIntersections.begin(), uniqueIntersections.end(),
+                   [&s1Index, &s2Index](const Intersection &inter) {
+                     return inter.s1Index == s1Index && inter.s2Index == s2Index;
+                   });
+
+  if (it != uniqueIntersections.end()) {
+    // this intersection has the lowest W value for the intersection
+    if (!s2IsExtension) {
+      // this intersection is with a line, , a perfect intersection
+      currIntersection.survives = 1;
+      return true;
+    }
+    else {
+      if (s1Index > s2Index) { 
+        // resolve duplicate lines by rejecting intersections from one direction, s1 higher than s2
+        currIntersection.survives = -1;
+        return false; 
+      }
+      it =
+        std::find_if(uniqueIntersections.begin(), uniqueIntersections.end(),
+          [&s1Index, &s2Index, &currIntersection](const Intersection& inter) {
+              if (inter.s1Index == s2Index && inter.s2Index == s1Index) {
+                currIntersection.survives = 1;
+                return true;
+              }
+              else {
+                currIntersection.survives = -1;
+                return false;
+              }
+          });
+      if (it != uniqueIntersections.end()) {
+        // s2 has its lowest W value for this intersection, a perfect intersection
+        currIntersection.survives = 1;
+        return true;
+      }
+      else {
+        // the current intersection is not in the uniqueIntersections list.
+        // check further
+        //return isSurvivingIntersection(intersections, uniqueIntersections, currIntersection);
+        currIntersection.survives = 0;
+        return false;
+      }
+    }
+  }
+  else {
+    // check further
+    currIntersection.survives = 0;
+    return false;
+  }
+
+}
+
+*/
+
+//-----------------------------------------------------------------------------
+
+/*! Draw lines for the line extension auto close method.
+*/
+static void drawLineExtensionAutocloses(TVectorImage* vi, TVectorRenderData& rd) {
+  static TPalette* plt = 0;
+
+  const int ROUNDINGFACTOR = 4;
+  DEBUG_LOG("\n\n===================== drawLineExtensionAutocloses - begin ==================================================================\n\n");
+  DEBUG_LOG("drawLineExtensionAutocloses, autoCloseFactor:" << AutocloseFactor << "\n");
+  if (!plt) {
+    plt = new TPalette();
+    const TPixelRGBM32 lineExtensionColor(0, 0xFF, 0xFF, 0xFF / 2);
+    plt->addStyle(lineExtensionColor);
+  }
+
+  std::vector<std::pair<int, double>> startPoints, endPoints;
+  // calculate the points for the candidate closing lines
+  // ToDo TomDoingArt - will this function call be needed?
+  //getLineExtensionClosingPoints(vi->getBBox(), AutocloseFactor, vi, startPoints, endPoints);
+  
+  UINT strokeCount = vi->getStrokeCount();
+
+  TVectorImage* vaux = new TVectorImage();
+
+  std::vector <int> listOfExtensions;
+
+  for (UINT i = 0; i < strokeCount; i++) {
+    TStroke* s1 = vi->getStroke(i);
+    // get start point. -----------------------------------------
+    TThickPoint* startPoint = &s1->getThickPoint(0);
+    const TThickQuadratic *startChunk = s1->getChunk(0);
+    
+    // Get the x,y from P0 and P1, calculate a startPointExtension set of coordinates from that.
+
+    std::pair<double, double> P0;
+    std::pair<double, double> P1;
+    std::pair<double, double> P2;
+
+    P0 = std::make_pair(startChunk->getThickP0().x, startChunk->getThickP0().y);
+    P1 = std::make_pair(startChunk->getThickP1().x, startChunk->getThickP1().y);
+    P2 = std::make_pair(startChunk->getThickP2().x, startChunk->getThickP2().y);
+
+    std::pair<double, double> startExtensionP2;
+
+    startExtensionP2 = extendQuadraticBezier(P0, P1, P2, AutocloseFactor, true);
+
+    //startPoint->x;
+    //startPoint->y;
+    //TThickPoint* startPointPlusOne = &s1->getThickPoint(1);
+    //startPointPlusOne->x;
+    //startPointPlusOne->y;
+
+    //TThickPoint* startPointExtension = new TThickPoint(startPoint->x + AutocloseFactor, startPoint->y + AutocloseFactor);
+    TThickPoint* startPointExtension = new TThickPoint(startExtensionP2.first, startExtensionP2.second);
+
+    // Get the x,y from P1 and P2, calculate an endPointExtension set of coordinates from that.
+
+    // get end point. -------------------------------------------
+    TThickPoint* endPoint = &s1->getThickPoint(s1->getControlPointCount() - 1);
+    const TThickQuadratic* endChunk = s1->getChunk(s1->getChunkCount() - 1);
+    
+    // Get the x,y from P0 and P1, calculate an startPointExtension set of coordinates from that.
+
+    //std::pair<double, double> P0;
+    //std::pair<double, double> P1;
+    //std::pair<double, double> P2;
+
+    P0 = std::make_pair(endChunk->getThickP0().x, endChunk->getThickP0().y);
+    P1 = std::make_pair(endChunk->getThickP1().x, endChunk->getThickP1().y);
+    P2 = std::make_pair(endChunk->getThickP2().x, endChunk->getThickP2().y);
+
+    std::pair<double, double> endExtensionP2;
+
+    endExtensionP2 = extendQuadraticBezier(P0, P1, P2, AutocloseFactor, false);
+
+
+    TThickPoint* endPointExtension = new TThickPoint(endExtensionP2.first, endExtensionP2.second);
+
+    // add these points to vaux
+    std::vector<TThickPoint> points(3);
+    TThickPoint p1;
+    
+    TThickPoint p2;
+
+    p1 = *startPoint;
+    p2 = *startPointExtension;
+
+    points[0] = p1;
+    points[1] = 0.5 * (p1 + p2);
+    points[2] = p2;
+    points[0].thick = points[1].thick = points[2].thick = 0.0;
+    TStroke* auxStroke = new TStroke(points);
+    auxStroke->setStyle(2);
+    //vaux->addStroke(auxStroke);
+    listOfExtensions.push_back(vaux->addStroke(auxStroke));
+
+    p1 = *endPoint;
+    p2 = *endPointExtension;
+
+    points[0] = p1;
+    points[1] = 0.5 * (p1 + p2);
+    points[2] = p2;
+    points[0].thick = points[1].thick = points[2].thick = 0.0;
+    auxStroke = new TStroke(points);
+    auxStroke->setStyle(2);
+    listOfExtensions.push_back(vaux->addStroke(auxStroke));
+    
+  } //end of adding all initial line extensions. *********************************************
+
+  rd.m_palette = plt;
+
+  
+  
+  // Calculate intersections *****************************************************************
+
+  // Define a struct to hold the intersection data
+  //struct Intersection {
+  //  UINT s1Index;   
+  //  bool s2IsExtension;
+  //  UINT s2Index; 
+  //  double w;        
+  //  double x;
+  //  double y;
+  //};
+
+  std::vector <Intersection> intersectionList;
+
+
+//  TVectorImage::Imp myImage = vi->m_imp;
+
+  //std::cout << "------------------------ bounding boxes for vaux strokes:" << "\n";
+  DEBUG_LOG("------------------------ bounding boxes for vaux strokes:" << "\n");
+
+  UINT vauxStrokeCount = vaux->getStrokeCount();
+
+  for (UINT i = 0; i < vauxStrokeCount; i++) {
+    TStroke* s2 = vaux->getStroke(i);
+
+    TRectD s2BBox = s2->getCenterlineBBox();
+    //std::cout << i << ", " << s2->getId() << "\n";
+    DEBUG_LOG(i << ", " << s2->getId() << "\n");
+    //std::cout << i << ", " << s2->getId() << " " << s2BBox.x0 << " " << s2BBox.y0 << "\n";
+    //std::cout << i << ", " << s2->getId() << " " << s2BBox.x1 << " " << s2BBox.y1 << "\n";
+
+  }
+
+  //std::cout << "************************ bounding boxes for vi strokes:" << "\n";
+  DEBUG_LOG("************************ bounding boxes for vi strokes:" << "\n");
+
+  UINT viStrokeCount = vi->getStrokeCount();
+
+  for (UINT i = 0; i < viStrokeCount; i++) {
+    TStroke* s2 = vi->getStroke(i);
+
+    TRectD s2BBox = s2->getCenterlineBBox();
+    // std::cout << i << ", " << s2->getId() << "\n";
+    DEBUG_LOG(i << ", " << s2->getId() << "\n");
+    //std::cout << i << ", " << s2->getId() << " " << s2BBox.x0 << " " << s2BBox.y0 << "\n";
+    //std::cout << i << ", " << s2->getId() << " " << s2BBox.x1 << " " << s2BBox.y1 << "\n";
+
+  }
+
+  TStroke* auxStroke;
+
+  std::vector <int> listOfExtensionsToDelete;
+
+  DEBUG_LOG("The extension stroke values:\n");
+  bool checkUsingBBox = true;
+  DEBUG_LOG("begin - Check extensions against regular lines. checkUsingBBox is:" << checkUsingBBox << "**********************************************************\n");
+
+  for (UINT num : listOfExtensions) { // outer loop, the list of extensions
+    auxStroke = vaux->getStroke(num);
+    DEBUG_LOG(num << ", " << auxStroke->getId());
+    //std::cout << " Control Point Count: " << auxStroke->getControlPointCount();
+    //std::cout << " W at P0: " << auxStroke->getW(auxStroke->getControlPoint(0)) << " W at P1: " << auxStroke->getW(auxStroke->getControlPoint(1)) << " W at P2: " << auxStroke->getW(auxStroke->getControlPoint(2));
+    DEBUG_LOG("\n");
+    
+    TRectD auxStrokeBBox = auxStroke->getCenterlineBBox();
+
+    //std::cout << "my bounding box" << "\n";
+    //std::cout << auxStroke->getId() << " " << auxStrokeBBox.x0 << " " << auxStrokeBBox.y0 << "\n";
+    //std::cout << auxStroke->getId() << " " << auxStrokeBBox.x1 << " " << auxStrokeBBox.y1 << "\n";
+
+    // std::cout << "bounding box for other strokes:" << "\n";
+
+    for (UINT i = 0; i < viStrokeCount; i++) { // inner loop, go through all the other strokes to look for overlap
+      TStroke* s2 = vi->getStroke(i);
+
+      if (auxStroke->getId() == s2->getId()) continue; // if s2 is myself, ignore
+
+        // do the strokes intersect?
+        //auxStroke->isSelfLoop(); // check if this stroke is self loop
+      std::vector<DoublePair> parIntersections;
+      if (intersect(auxStroke, s2, parIntersections, checkUsingBBox)) {
+        DEBUG_LOG("\t" << auxStroke->getId() << " intersects stroke:" << s2->getId());
+        DEBUG_LOG(", number of intersectionList:" << parIntersections.size());
+        
+        // ToDo TomDoingArt - iterate through the intersections. Currently I am only processing the first one ******************************************************
+
+        DEBUG_LOG(", W first:" << parIntersections.at(0).first << ", second:" << parIntersections.at(0).second);
+
+        //std::cout << ", auxStroke x:" << auxStroke->getPointAtLength(parIntersections.at(0).first).x;
+        //std::cout << ", y:" << auxStroke->getPointAtLength(parIntersections.at(0).first).y;
+        //std::cout << ", s2 x:" << s2->getPointAtLength(parIntersections.at(0).second).x;
+        //std::cout << ", y:" << s2->getPointAtLength(parIntersections.at(0).second).y;
+
+        DEBUG_LOG(", auxStroke x:" << auxStroke->getPoint(parIntersections.at(0).first).x);
+        DEBUG_LOG(", y:" << auxStroke->getPoint(parIntersections.at(0).first).y);
+        DEBUG_LOG(", s2 x:" << s2->getPoint(parIntersections.at(0).second).x);
+        DEBUG_LOG(", y:" << s2->getPoint(parIntersections.at(0).second).y);
+        DEBUG_LOG("\n");
+
+
+        //if (std::max(0.0, std::min(parIntersections.at(0).first, 1.0)) == 0 && (parIntersections.at(0).second == 0 || parIntersections.at(0).second == 1)) {
+        if (std::round(parIntersections.at(0).first * ROUNDINGFACTOR) / ROUNDINGFACTOR == 0 && (std::round(parIntersections.at(0).second * ROUNDINGFACTOR) / ROUNDINGFACTOR == 0 || std::round(parIntersections.at(0).second * ROUNDINGFACTOR) / ROUNDINGFACTOR == 1)) {
+          DEBUG_LOG("\t\tmy origin stroke, so ignore");
+          DEBUG_LOG(", auxStroke x:" << auxStroke->getPoint(0).x);
+          DEBUG_LOG(", y:" << auxStroke->getPoint(0).y);
+          DEBUG_LOG(", s2 P0 x:" << s2->getPoint(0).x);
+          DEBUG_LOG(", y:" << s2->getPoint(0).y);
+          DEBUG_LOG(", s2 P2 x:" << s2->getPoint(1).x);
+          DEBUG_LOG(", y:" << s2->getPoint(1).y);
+          DEBUG_LOG("\n");
+
+        }
+        else {
+          // Add the intersections to the intersection list
+
+          // calculate distance between s2 origin and s2 origin
+          double s1Oribinx = auxStroke->getPoint(0).x;
+          double s1Originy = auxStroke->getPoint(0).y;
+          double intersectionX = auxStroke->getPoint(parIntersections.at(0).first).x;
+          double intersectionY = auxStroke->getPoint(parIntersections.at(0).first).y;
+          double d = tdistance(TPointD(s1Oribinx, s1Originy), TPointD(intersectionX, intersectionY));
+
+          DEBUG_LOG("    distance from s1 origin to intersection is:" << d << "\n");
+
+          Intersection anIntersection = {
+            num,
+            false,
+            i,
+            parIntersections.at(0).first,
+            auxStroke->getPoint(parIntersections.at(0).first).x,
+            auxStroke->getPoint(parIntersections.at(0).first).y
+          };
+
+          intersectionList.push_back(anIntersection);
+
+        }
+        DEBUG_LOG("\n");
+
+
+      } // end of: if (intersect(auxStroke, s2, parIntersections, checkUsingBBox))
+      else {
+        //std::cout << "checkUsingBBox is:" << checkUsingBBox << " and these strokes do not intersect\n";
+        DEBUG_LOG("\t" << auxStroke->getId() << " does not intersect stroke:" << s2->getId());
+        DEBUG_LOG(", auxStroke x:" << auxStroke->getPoint(0).x);
+        DEBUG_LOG(", y:" << auxStroke->getPoint(0).y);
+        DEBUG_LOG(", s2 P0 x:" << s2->getPoint(0).x);
+        DEBUG_LOG(", y:" << s2->getPoint(0).y);
+        DEBUG_LOG(", s2 P2 x:" << s2->getPoint(1).x);
+        DEBUG_LOG(", y:" << s2->getPoint(1).y);
+        DEBUG_LOG("\n");
+
+      }
+      //}
+    } // inner loop of vi
+  } // outer loop of listOfExtensions
+
+
+  DEBUG_LOG("end - Check extensions against regular lines. ------------------------------------------------------------" << "\n");
+
+  
+  // print out the latest versions of vaux and vi
+
+  //std::cout << "------------------------ bounding boxes for vaux strokes:" << "\n";
+  DEBUG_LOG("------------------------ vaux strokes:" << "\n");
+
+  vauxStrokeCount = vaux->getStrokeCount();
+
+  for (UINT i = 0; i < vauxStrokeCount; i++) {
+    TStroke* s2 = vaux->getStroke(i);
+
+    TRectD s2BBox = s2->getCenterlineBBox();
+    DEBUG_LOG(i << ", " << s2->getId() << "\n");
+    //std::cout << i << ", " << s2->getId() << " " << s2BBox.x0 << " " << s2BBox.y0 << "\n";
+    //std::cout << i << ", " << s2->getId() << " " << s2BBox.x1 << " " << s2BBox.y1 << "\n";
+
+  }
+
+  //std::cout << "************************ bounding boxes for vi strokes:" << "\n";
+  DEBUG_LOG("************************ vi strokes:" << "\n");
+
+  viStrokeCount = vi->getStrokeCount();
+
+  for (UINT i = 0; i < viStrokeCount; i++) {
+    TStroke* s2 = vi->getStroke(i);
+
+    TRectD s2BBox = s2->getCenterlineBBox();
+    DEBUG_LOG(i << ", " << s2->getId() << "\n");
+    //std::cout << i << ", " << s2->getId() << " " << s2BBox.x0 << " " << s2BBox.y0 << "\n";
+    //std::cout << i << ", " << s2->getId() << " " << s2BBox.x1 << " " << s2BBox.y1 << "\n";
+
+  }
+
+  // end of: print out the latest versions of vaux and vi
+ 
+
+  // **********************************************************************************
+  // Repeat the loops, this time for the extension to extension intersections         *
+  // **********************************************************************************
+
+//  bool checkUsingBBox = true;
+  DEBUG_LOG("begin - Check extensions against other extensions. checkUsingBBox is : " << checkUsingBBox << "**********************************************************\n");
+
+  for (UINT num : listOfExtensions) { // outer loop, the list of extensions
+    auxStroke = vaux->getStroke(num);
+    //std::cout << num << " Control Point Count: " << auxStroke->getControlPointCount();
+    //std::cout << " stroke ID: " << auxStroke->getId() << ",";
+    //std::cout << " W at P0: " << auxStroke->getW(auxStroke->getControlPoint(0)) << " W at P1: " << auxStroke->getW(auxStroke->getControlPoint(1)) << " W at P2: " << auxStroke->getW(auxStroke->getControlPoint(2)) << "\n";
+
+    //TRectD auxStrokeBBox = auxStroke->getCenterlineBBox();
+
+    //std::cout << "my bounding box" << "\n";
+    //std::cout << auxStroke->getId() << " " << auxStrokeBBox.x0 << " " << auxStrokeBBox.y0 << "\n";
+    //std::cout << auxStroke->getId() << " " << auxStrokeBBox.x1 << " " << auxStrokeBBox.y1 << "\n";
+
+    for (UINT i = 0; i < vauxStrokeCount; i++){ // inner loop of lineExtensions
+      TStroke* s2 = vaux->getStroke(i);
+      
+      //TRectD s2BBox = s2->getCenterlineBBox();
+      //std::cout << s2->getId() << " " << s2BBox.x0 << " " << s2BBox.y0 << "\n";
+      //std::cout << s2->getId() << " " << s2BBox.x1 << " " << s2BBox.y1 << "\n";
+
+      if (auxStroke->getId() == s2->getId()) continue; // if s2 is myself, ignore
+
+        // do the strokes intersect?
+        //auxStroke->isSelfLoop(); // check if this stroke is self loop
+        std::vector<DoublePair> parIntersections;
+        if (intersect(auxStroke, s2, parIntersections, checkUsingBBox)) {
+          DEBUG_LOG("\t" << auxStroke->getId() << " intersects stroke:" << s2->getId());
+          DEBUG_LOG(", number of intersectionList:" << parIntersections.size()); 
+          DEBUG_LOG(", W first:" << parIntersections.at(0).first << ", second:" << parIntersections.at(0).second);
+
+          //std::cout << ", auxStroke x:" << auxStroke->getPointAtLength(parIntersections.at(0).first).x;
+          //std::cout << ", y:" << auxStroke->getPointAtLength(parIntersections.at(0).first).y;
+          //std::cout << ", s2 x:" << s2->getPointAtLength(parIntersections.at(0).second).x;
+          //std::cout << ", y:" << s2->getPointAtLength(parIntersections.at(0).second).y;
+
+          DEBUG_LOG(", auxStroke x:" << auxStroke->getPoint(parIntersections.at(0).first).x);
+          DEBUG_LOG(", y:" << auxStroke->getPoint(parIntersections.at(0).first).y);
+          DEBUG_LOG(", s2 x:" << s2->getPoint(parIntersections.at(0).second).x);
+          DEBUG_LOG(", y:" << s2->getPoint(parIntersections.at(0).second).y);
+
+          DEBUG_LOG("\n");
+
+          // calculate distance between s2 origin and s2 origin
+          double originS1x = auxStroke->getPoint(0).x;
+          double originS1y = auxStroke->getPoint(0).y;
+          double originS2x = s2->getPoint(0).x;
+          double originS2y = s2->getPoint(0).y;
+          double d = tdistance(TPointD(originS1x, originS1y), TPointD(originS2x, originS2y));
+
+          if (d > AutocloseFactor) {
+
+            DEBUG_LOG("Gap close distance " << d << " from s1 origin " << originS1x << "," << originS1y << " to s2 origin " << originS2x << "," << originS2y << " exceeds maximum distance " << AutocloseFactor << ".This intersection is ignored.\n");
+
+          }else {
+            Intersection anIntersection = {
+                num,
+                true,
+                i,
+                parIntersections.at(0).first,
+                auxStroke->getPoint(parIntersections.at(0).first).x,
+                auxStroke->getPoint(parIntersections.at(0).first).y};
+
+            intersectionList.push_back(anIntersection);
+          }
+          
+        } else {
+          //std::cout << "checkUsingBBox is:" << checkUsingBBox << " and these strokes do not intersect\n";
+        }
+      //}
+    } // inner loop of extensions
+  } // outer loop
+
+  DEBUG_LOG("end - Check extensions against other extensions. ---------------------------------------------------------------\n");
+
+
+  /* 
+  
+  Loop through the intersection list.
+  Remove intersections of each line extension except for the one which is closest to a W value of 0.
+  
+  */ 
+
+  // Sorting by s1Index first, and w second if s1Index is equal
+  std::sort(intersectionList.begin(), intersectionList.end(),
+    [](const Intersection& a, const Intersection& b) {
+      if (a.s1Index != b.s1Index) {
+        return a.s1Index < b.s1Index; // Sort by s1Index
+      }
+      else {
+        return a.w < b.w; // If s1Index is equal, sort by w
+      }
+    });
+  
+
+  // Step 2: Remove duplicates by keeping only the first occurrence of each s1Index
+  std::vector<Intersection> uniqueIntersections;
+  std::set<UINT> seenS1Indices;
+
+  for (const auto& inter : intersectionList) {
+    if (seenS1Indices.find(inter.s1Index) == seenS1Indices.end()) {
+      // If the s1Index hasn't been seen before, add it to uniqueIntersections
+      uniqueIntersections.push_back(inter);
+      seenS1Indices.insert(inter.s1Index); // Mark this s1Index as seen
+    }
+  }
+
+  DEBUG_LOG("Original list:" << "\n");
+  for (Intersection currIntersection : intersectionList) {
+    // Remove intersections of each line extension except for the one which is closest to a W value of 0.
+    DEBUG_LOG("Intersection s1:" << currIntersection.s1Index << " isExt:" << currIntersection.s2IsExtension << " s2:" << currIntersection.s2Index << " s2W:" << currIntersection.w << " x:" << currIntersection.x << " y:" << currIntersection.y << " survives:" << currIntersection.survives << "\n");
+
+  }
+
+  DEBUG_LOG("Filtered list, lowest W value:" << "\n");
+  for (const auto& currIntersection : uniqueIntersections) {
+    DEBUG_LOG("Intersection s1:" << currIntersection.s1Index << " isExt:" << currIntersection.s2IsExtension << " s2:" << currIntersection.s2Index << " s2W:" << currIntersection.w << " x:" << currIntersection.x << " y:" << currIntersection.y << " survives:" << currIntersection.survives << "\n");
+  }
+
+  // ===================================================================================================================
+  // Given the list of intersections, determine which are surviving intersections based on intersection precedence.
+
+  std::vector<Intersection> survivingIntersections;
+
+  determineSurvivingIntersections(intersectionList, uniqueIntersections);
+
+  // ===================================================================================================================
+
+  /*
+  
+  Loop through the surviving intersection list and create updated extension lines.
+  
+  */
+  
+  for (Intersection currIntersection : intersectionList) { // start of - outer loop, the list of intersections
+
+    if(currIntersection.survives == 1){
+
+    UINT s1Index;
+    UINT s2Index;
+
+    s1Index = currIntersection.s1Index;
+    s2Index = currIntersection.s2Index;
+
+    auxStroke = vaux->getStroke(currIntersection.s1Index);
+
+    if (currIntersection.s2IsExtension) { // ******************* extension intersects extension **********************
+
+      if (currIntersection.s1Index > currIntersection.s2Index) {
+        DEBUG_LOG("mirror intersection, safe to ignore." << currIntersection.s1Index << " - " << currIntersection.s2Index << "\n");
+      }
+      else{
+
+      TStroke* s2 = vaux->getStroke(currIntersection.s2Index);
+
+      // Set P2 equal to the start endpoint P0 of s2. ********************
+
+      const TThickQuadratic* s1StartChunk = auxStroke->getChunk(0);
+      const TThickQuadratic* s2StartChunk = s2->getChunk(0);
+
+      TThickPoint s1P0ThickPoint = s1StartChunk->getThickP0();
+      TThickPoint s2P0ThickPoint = s2StartChunk->getThickP0();
+
+      // add the new stroke.
+
+      TThickPoint* startPoint = &s1P0ThickPoint;
+      TThickPoint* endPoint = &s2P0ThickPoint;
+
+      // add these points to vaux
+      std::vector<TThickPoint> points(3);
+
+      TThickPoint p1;
+      TThickPoint p2;
+
+      p1 = *startPoint;
+      p2 = *endPoint;
+
+      points[0] = p1;
+      // Set P1 equal to 1/2 the distance between P0 and P2. *****************
+      points[1] = 0.5 * (p1 + p2);
+      points[2] = p2;
+      points[0].thick = points[1].thick = points[2].thick = 0.0;
+      TStroke* auxStroke = new TStroke(points);
+      auxStroke->setStyle(2);
+      int addedAt = vaux->addStroke(auxStroke);
+
+      // add original strokes to the delete list.
+      // do I care about order here, since the delete list is later sorted?
+      if (currIntersection.s1Index > currIntersection.s2Index) {
+        listOfExtensionsToDelete.push_back(currIntersection.s1Index);
+        listOfExtensionsToDelete.push_back(currIntersection.s2Index);
+        DEBUG_LOG("added " << currIntersection.s1Index << " to listOfExtensionsToDelete\n");
+        DEBUG_LOG("added " << currIntersection.s2Index << " to listOfExtensionsToDelete\n");
+      }
+      else {
+        listOfExtensionsToDelete.push_back(currIntersection.s2Index);
+        listOfExtensionsToDelete.push_back(currIntersection.s1Index);
+        DEBUG_LOG("added " << currIntersection.s2Index << " to listOfExtensionsToDelete\n");
+        DEBUG_LOG("added " << currIntersection.s1Index << " to listOfExtensionsToDelete\n");
+      }
+      }
+    }
+    else { // ******************* extension intersects line **********************
+
+
+      //Extension intersects Line
+        //Set P2 equal to the point of intersection.
+        //Set P1 equal to 1/2 the distance between P0 and P2.
+        //add original line extension stroke to delete list.
+      
+
+      const TThickQuadratic* s1StartChunk = auxStroke->getChunk(0);
+
+      TThickPoint s1P0ThickPoint = s1StartChunk->getThickP0();
+
+      TThickPoint* startPoint = &s1P0ThickPoint;
+
+      TThickPoint* endPoint = new TThickPoint(currIntersection.x, currIntersection.y);
+
+      // add these points to vaux
+      std::vector<TThickPoint> points(3);
+
+      TThickPoint p0;
+      TThickPoint p2;
+
+      p0 = *startPoint;
+      p2 = *endPoint;
+
+      points[0] = p0;
+
+      // Set P1 equal to 1/2 the distance between P0 and P2. *****************
+      points[1] = 0.5 * (p0 + p2);
+      points[2] = p2;
+      points[0].thick = points[1].thick = points[2].thick = 0.0; // sets the thickness value to all the points to 0.0
+      TStroke* auxStroke = new TStroke(points);
+      auxStroke->setStyle(2);
+      int addedAt = vaux->addStroke(auxStroke);
+
+      DEBUG_LOG("added " << currIntersection.s1Index << " to listOfExtensionsToDelete\n");
+      listOfExtensionsToDelete.push_back(currIntersection.s1Index);
+
+    }
+    }
+  } // end of - outer loop, the list of intersections
+
+  
+
+
+
+  /*
+  
+  Loop through the delete list in descending order and remove the listed strokes from the line extensions.
+  
+  */
+
+// Sort the vector first
+  std::sort(listOfExtensionsToDelete.begin(), listOfExtensionsToDelete.end(), std::greater<int>());
+
+  // Use std::unique to remove consecutive duplicates
+  auto it = std::unique(listOfExtensionsToDelete.begin(), listOfExtensionsToDelete.end());
+
+  // Erase the "extra" elements after std::unique
+  listOfExtensionsToDelete.erase(it, listOfExtensionsToDelete.end());
+
+  DEBUG_LOG("Deleting unwanted strokes, of which there are:" << listOfExtensionsToDelete.size() << "\n");
+  for (UINT j = 0; j < listOfExtensionsToDelete.size(); j++) {
+    DEBUG_LOG("Removing index:" << listOfExtensionsToDelete.at(j) << ", Id:" << vaux->getStroke(listOfExtensionsToDelete.at(j))->getId() << "\n");
+    vaux->removeStroke(listOfExtensionsToDelete.at(j));
+  }
+
+  listOfExtensionsToDelete.clear(); // is this needed? The list will be reset during the next invocation of drawLineExtensionAutocloses()
+    
+
+
+
+  // temporarily disable fill check, to preserve the gap indicator color
+  bool tCheckEnabledOriginal = rd.m_tcheckEnabled;
+  rd.m_tcheckEnabled = false;
+  // draw
+  tglDraw(rd, vaux);
+  // restore original value
+  rd.m_tcheckEnabled = tCheckEnabledOriginal;
+  delete vaux;
+  DEBUG_LOG("===================== drawLineExtensionAutocloses - end ==================================================================\n");
+}
+
+//-----------------------------------------------------------------------------
+
+static void buildLineExtensionAutocloseImage(
+  TVectorImage* vaux, TVectorImage* vi,
+  const std::vector<std::pair<int, double>>& startPoints,
+  const std::vector<std::pair<int, double>>& endPoints) {
+  DEBUG_LOG("buildLineExtensionAutocloseImage\n");
+  for (UINT i = 0; i < startPoints.size(); i++) {
+    TThickPoint p1 = vi->getStroke(startPoints[i].first)
+      ->getThickPoint(startPoints[i].second);
+    TThickPoint p2 =
+      vi->getStroke(endPoints[i].first)->getThickPoint(endPoints[i].second);
+    std::vector<TThickPoint> points(3);
+    points[0] = p1;
+    points[1] = 0.5 * (p1 + p2);
+    points[2] = p2;
+    points[0].thick = points[1].thick = points[2].thick = 0.0;
+    TStroke* auxStroke = new TStroke(points);
+    auxStroke->setStyle(2);
+    vaux->addStroke(auxStroke);
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -988,7 +2069,9 @@ void RasterPainter::onVectorImage(TVectorImage *vi,
   else
     tglDraw(rd, vi, &guidedStroke);
 
-  if (tc & ToonzCheck::eAutoclose) drawAutocloses(vi, rd);
+  //if (tc & ToonzCheck::eAutoclose) drawAutocloses(vi, rd); // Commented out by TomDoingArt
+
+  if (tc & ToonzCheck::eAutoclose) drawLineExtensionAutocloses(vi, rd);
 
   glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
   vPalette->setFrame(oldFrame);

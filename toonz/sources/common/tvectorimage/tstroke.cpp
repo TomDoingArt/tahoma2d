@@ -2667,11 +2667,17 @@ int intersect(const TStroke *s1, const TStroke *s2,
 
   intersections.clear();
 
-  if (checkBBox && !s1->getBBox().overlaps(s2->getBBox())) return 0;
+  if (checkBBox && !s1->getBBox().overlaps(s2->getBBox())) {
+    //std::cout << "intersect: no overlap\n";
+    return 0;
+  }
 
   for (int i = 0; i < s1->getChunkCount(); i++) {
     const TQuadratic *q1 = s1->getChunk(i);
-    if (q1->getP0() == q1->getP2() && q1->getP1() == q1->getP2()) continue;
+    if (q1->getP0() == q1->getP2() && q1->getP1() == q1->getP2()) {
+      //std::cout << "intersect: continue 1\n";
+      continue;
+    }
     int j = 0;
     if (s1 ==
         s2)  // this 'if': if after i-th stroke there are degenere strokes,
@@ -2690,9 +2696,15 @@ int intersect(const TStroke *s1, const TStroke *s2,
 
     for (; j < s2->getChunkCount(); j++) {
       const TQuadratic *q2 = s2->getChunk(j);
-      if (q2->getP0() == q2->getP2() && q2->getP1() == q2->getP2()) continue;
+      if (q2->getP0() == q2->getP2() && q2->getP1() == q2->getP2()) {
+        //std::cout << "intersect: continue 2\n";
+        continue;
+      }
 
-      if (!almostOverlaps(q1->getBBox(), q2->getBBox())) continue;
+      if (!almostOverlaps(q1->getBBox(), q2->getBBox())) {
+        //std::cout << "intersect: continue 3\n";
+        continue;
+      }
 #ifdef CHECK_DEGLI_ESTREMI
       vector<DoublePair> quadIntersections1;
       if (i == 0 || i == s1->getChunkCount() - 1) && (j==0 || j==s2->getChunkCount()-1))
@@ -2743,6 +2755,7 @@ int intersect(const TStroke *s1, const TStroke *s2,
           (q1->getP0() == q2->getP2() && q1->getP1() == q2->getP1() &&
            q1->getP2() == q2->getP0())) {
         // j+=((j==0)?1:2);
+        //std::cout << "intersect: continue 4\n";
         continue;
       }
       //  }
@@ -2762,7 +2775,10 @@ int intersect(const TStroke *s1, const TStroke *s2,
               if (areAlmostEqual(intersections[q].first, res.first, 1e-8) &&
                   areAlmostEqual(intersections[q].second, res.second, 1e-8))
                 break;
-            if (q < (int)intersections.size()) continue;
+            if (q < (int)intersections.size()) {
+              //std::cout << "intersect: continue 5\n";
+              continue;
+            }
           }
           intersections.push_back(res);
           // if (k==0 || intersections[k].first!=intersections[k-1].first ||
@@ -2773,12 +2789,14 @@ int intersect(const TStroke *s1, const TStroke *s2,
   }
   if (s1 == s2 &&
       (s1->isSelfLoop() || s1->getPoint(0.0) == s1->getPoint(1.0))) {
+    //std::cout << "intersect: self loop or W0 same as W1\n";
     int i;
     for (i = 0; i < (int)intersections.size(); i++) {
       assert(!(areAlmostEqual(intersections[i].first, 1.0, 1e-1) &&
                areAlmostEqual(intersections[i].second, 0.0, 1e-1)));
       if (areAlmostEqual(intersections[i].first, 0.0, 1e-1) &&
           areAlmostEqual(intersections[i].second, 1.0, 1e-1))
+        //std::cout << "intersect: break 1\n";
         break;
     }
     if (i == (int)intersections.size()) {

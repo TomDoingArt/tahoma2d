@@ -307,7 +307,7 @@ private:
   TEnumProperty m_interpolation;
   TDoubleProperty m_toolSize;
   TBoolProperty m_selective;
-  TBoolProperty m_invertOption;
+  TBoolProperty m_invertOption = TBoolProperty("Invert", false);
   TBoolProperty m_multi;
 
   double m_pointSize, m_distance2;

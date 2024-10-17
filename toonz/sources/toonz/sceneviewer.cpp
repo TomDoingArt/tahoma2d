@@ -2003,7 +2003,7 @@ void SceneViewer::drawViewerIndicators() {
     if (mask & ToonzCheck::eInksOnly) checkTexts.append(tr("Inks Only Check"));
     if (mask & ToonzCheck::eBlackBg) checkTexts.append(tr("Black BG Check"));
     if (mask & ToonzCheck::eGap) checkTexts.append(tr("Fill Check"));
-    if (mask & ToonzCheck::eAutoclose) checkTexts.append(tr("Gap Check"));
+    if (mask & ToonzCheck::eAutoclose) checkTexts.append(tr("Gap Check TEST"));
   }
 
   if (!checkTexts.size()) return;
@@ -3565,7 +3565,8 @@ void drawSpline(const TAffine &viewMatrix, const TRect &clipRect, bool camera3d,
     TStageObjectSpline *spline = xsh->getStageObjectTree()->getSpline(i);
 
     if (isMotionPathViewer && (pegbarSpline && pegbarSpline == spline))
-      int z;
+      //int z; Flagged by Visual Studio as not being referenced.
+      continue;
     else if (!spline->getActive())
       continue;
 

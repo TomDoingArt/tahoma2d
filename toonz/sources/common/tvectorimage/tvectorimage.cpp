@@ -2112,6 +2112,66 @@ VIStroke *TVectorImage::Imp::extendStrokeSmoothly(int index,
 
 //-----------------------------------------------------------------------------
 
+TStroke* TVectorImage::Imp::getSmoothStrokeExtension(int index,
+  const TThickPoint& pos,
+  int cpIndex) {
+  TStroke* stroke = m_strokes[index]->m_s;
+  TGroupId groupId = m_strokes[index]->m_groupId;
+
+  int cpCount = stroke->getControlPointCount();
+  int styleId = stroke->getStyle();
+  const TThickQuadratic* q =
+    stroke->getChunk(cpIndex == 0 ? 0 : stroke->getChunkCount() - 1);
+
+  double len = q->getLength();
+  double w = exp(-len * 0.01);
+  TThickPoint m = q->getThickP1();
+
+  TThickPoint p1 =
+    (cpIndex == 0 ? q->getThickP0() : q->getThickP2()) * (1 - w) + m * w;
+  TThickPoint middleP = (p1 + pos) * 0.5;
+
+  double angle = fabs(cross(normalize(m - middleP), normalize(pos - middleP)));
+  if (angle < 0.05) middleP = (m + pos) * 0.5;
+
+  stroke->setControlPoint(cpIndex, middleP);
+  if (isAlmostZero(len)) {
+    if (cpIndex == 0)
+      stroke->setControlPoint(1,
+        middleP * 0.1 + stroke->getControlPoint(2) * 0.9);
+    else
+      stroke->setControlPoint(
+        cpCount - 2,
+        middleP * 0.1 + stroke->getControlPoint(cpCount - 3) * 0.9);
+  }
+
+  std::vector<TThickPoint> points(cpCount);
+  for (int i = 0; i < cpCount - 1; i++)
+    points[i] = stroke->getControlPoint((cpIndex == 0) ? cpCount - i - 1 : i);
+  points[cpCount - 1] = pos;
+
+  TStroke* newStroke = new TStroke(points);
+  newStroke->setStyle(styleId);
+  newStroke->outlineOptions() = stroke->outlineOptions();
+  
+  /*std::list<TEdge*> oldEdgeList, emptyList;
+  computeEdgeList(newStroke, m_strokes[index]->m_edgeList, cpIndex == 0,
+    emptyList, 0, oldEdgeList);
+
+  std::vector<int> toBeDeleted;
+  toBeDeleted.push_back(index);
+  removeStrokes(toBeDeleted, true, false);
+
+  insertStrokeAt(new VIStroke(newStroke, groupId), index, false);
+  computeRegions();
+  transferColors(oldEdgeList, m_strokes[index]->m_edgeList, true, false, true);*/
+
+  //return m_strokes[index];
+  return newStroke;
+}
+
+//-----------------------------------------------------------------------------
+
 VIStroke *TVectorImage::Imp::extendStroke(int index, const TThickPoint &p,
                                           int cpIndex) {
   TGroupId groupId = m_strokes[index]->m_groupId;
