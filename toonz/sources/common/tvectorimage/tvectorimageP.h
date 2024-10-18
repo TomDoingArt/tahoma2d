@@ -179,6 +179,9 @@ public:
                                int cpIndex2);
   VIStroke *extendStroke(int index, const TThickPoint &p, int cpIndex);
   VIStroke *extendStrokeSmoothly(int index, const TThickPoint &p, int cpIndex);
+
+  TStroke *getSmoothStrokeExtension(int index, const TThickPoint& pos, int cpIndex);
+
   void removeStrokes(const std::vector<int> &toBeRemoved, bool deleteThem,
                      bool recomputeRegions);
   TStroke *removeStroke(int index, bool doComputeRegions);

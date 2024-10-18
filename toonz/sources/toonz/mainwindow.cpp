@@ -2087,6 +2087,8 @@ void MainWindow::defineActions() {
                         "histograms");
   createMenuLevelAction(MI_AdjustThickness, QT_TR_NOOP("Adjust Thickness..."),
                         "", "thickness");
+  createMenuLevelAction(MI_CloseAndTrim, QT_TR_NOOP("Close and Trim..."),
+    "", "close_and_trim");
   createMenuLevelAction(MI_Antialias, QT_TR_NOOP("&Antialias..."), "",
                         "antialias");
   createMenuLevelAction(MI_Binarize, QT_TR_NOOP("&Binarize..."), "",

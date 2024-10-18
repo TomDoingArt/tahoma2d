@@ -109,6 +109,7 @@
 #define MI_Antialias "MI_Antialias"
 #define MI_AdjustLevels "MI_AdjustLevels"
 #define MI_AdjustThickness "MI_AdjustThickness"
+#define MI_CloseAndTrim "MI_CloseAndTrim"
 #define MI_Binarize "MI_Binarize"
 #define MI_LinesFade "MI_LinesFade"
 #define MI_OpenXshView "MI_OpenXshView"

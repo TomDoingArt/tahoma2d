@@ -5,6 +5,7 @@ set(MOC_HEADERS
     addfilmstripframespopup.h
     adjustlevelspopup.h
     adjustthicknesspopup.h
+    closeandtrimpopup.h
     antialiaspopup.h
     audiorecordingpopup.h
     autoinputcellnumberpopup.h
@@ -341,6 +342,7 @@ set(SOURCES
     exportlevelcommand.cpp
     adjustlevelspopup.cpp
     adjustthicknesspopup.cpp
+    closeandtrimpopup.cpp
     binarizepopup.cpp
     brightnessandcontrastpopup.cpp
     linesfadepopup.cpp

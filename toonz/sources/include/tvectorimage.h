@@ -427,6 +427,12 @@ DVAPI void getClosingPoints(const TRectD &rect, double fac,
                             std::vector<std::pair<int, double>> &startPoints,
                             std::vector<std::pair<int, double>> &endPoints);
 
+DVAPI void getLineExtensionClosingPoints(
+    const TRectD &rect, double fac, const TVectorImageP &vi,
+    std::vector<std::pair<int, double>> &startPoints,
+    std::vector<std::pair<int, double>> &endPoints);
+
+
 //-----------------------------------------------------------------------------
 
 #ifdef _WIN32
