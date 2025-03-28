@@ -28,10 +28,12 @@
 #include "tproperty.h"
 #include "drawutil.h"
 
+#include "../common/tvectorimage/tvectorimageP.h"
+
 // For Qt translation support
 #include <QCoreApplication>
 
-bool debug_mode = true;  // Set to false to disable debug output
+bool debug_mode = false;  // Set to false to disable debug output
 #define DEBUG_LOG(x) if (debug_mode) std::cout << x // << std::endl
 
 using namespace ToolUtils;
@@ -112,6 +114,7 @@ public:
   void undo() const override {
     TTool::Application *app = TTool::getApplication();
     if (!app) return;
+    DEBUG_LOG("\nUndoAutoclose.undo() was called.\n");
     if (app->getCurrentFrame()->isEditingScene()) {
       app->getCurrentColumn()->setColumnIndex(m_column);
       app->getCurrentFrame()->setFrame(m_row);
@@ -145,6 +148,7 @@ public:
   void redo() const override {
     TTool::Application *app = TTool::getApplication();
     if (!app) return;
+    DEBUG_LOG("\nUndoAutoclose.redo() was called.\n");
 
     if (app->getCurrentFrame()->isEditingScene()) {
       app->getCurrentColumn()->setColumnIndex(m_column);
@@ -206,27 +210,36 @@ namespace {
     VIStroke* m_newStroke;
     int m_newStrokeId;
     int m_newStrokePos;
+    std::vector<VIStroke*> m_addedStrokes;
+    std::vector<int> m_addedStrokeIDs;
 
-    UndoLineExtensionAutoclose(TXshSimpleLevel* level, const TFrameId& frameId, int pos1,
-      int pos2, std::vector<TFilledRegionInf>* fillInformation,
-      const std::vector<int>& changedStrokes)
-      : ToolUtils::TToolUndo(level, frameId)
-      , m_oldStroke1(0)
-      , m_oldStroke2(0)
-      , m_pos1(pos1)
-      , m_pos2(pos2)
-      , m_newStrokePos(-1)
-      , m_fillInformation(fillInformation)
-      , m_changedStrokes(changedStrokes) {
+    UndoLineExtensionAutoclose(TXshSimpleLevel* level, const TFrameId& frameId) : ToolUtils::TToolUndo(level, frameId) 
+    {
+      DEBUG_LOG("\nUndoLineExtensionAutoclose(TXshSimpleLevel* level, const TFrameId& frameId)\n");
       TVectorImageP image = level->getFrame(m_frameId, true);
-      if (pos1 != -1) {
-        m_oldStrokeId1 = image->getStroke(pos1)->getId();
-        m_oldStroke1 = cloneVIStroke(image->getVIStroke(pos1));
+      m_frameId = frameId;
+      TTool::Application* app = TTool::getApplication();
+      if (app) {
+        m_row = app->getCurrentFrame()->getFrame();
+        m_column = app->getCurrentColumn()->getColumnIndex();
       }
-      if (pos2 != -1 && pos1 != pos2 && image) {
-        m_oldStrokeId2 = image->getStroke(pos2)->getId();
-        m_oldStroke2 = cloneVIStroke(image->getVIStroke(pos2));
-      }
+    }
+
+    UndoLineExtensionAutoclose(TXshSimpleLevel* level, const TFrameId& frameId,
+      const std::vector<VIStroke*> addedStrokes, std::vector<int> newStrokeIDs)
+          : ToolUtils::TToolUndo(level, frameId)
+      , m_addedStrokeIDs(newStrokeIDs)
+      , m_addedStrokes(addedStrokes){
+      DEBUG_LOG("\nUndoLineExtensionAutoclose(TXshSimpleLevel * level, const TFrameId & frameId,const std::vector<VIStroke*> addedStrokes, std::vector<int> newStrokeIDs)\n");
+      TVectorImageP image = level->getFrame(m_frameId, true);
+      //if (pos1 != -1) {
+      //  m_oldStrokeId1 = image->getStroke(pos1)->getId();
+      //  m_oldStroke1 = cloneVIStroke(image->getVIStroke(pos1));
+      //}
+      //if (pos2 != -1 && pos1 != pos2 && image) {
+      //  m_oldStrokeId2 = image->getStroke(pos2)->getId();
+      //  m_oldStroke2 = cloneVIStroke(image->getVIStroke(pos2));
+      //}
       TTool::Application* app = TTool::getApplication();
       if (app) {
         m_row = app->getCurrentFrame()->getFrame();
@@ -235,13 +248,21 @@ namespace {
     }
 
     ~UndoLineExtensionAutoclose() {
-      deleteVIStroke(m_newStroke);
-      if (m_oldStroke1) deleteVIStroke(m_oldStroke1);
-      if (m_oldStroke2) deleteVIStroke(m_oldStroke2);
-      if (m_isLastInBlock) delete m_fillInformation;
+      if (true) return;
+      //deleteVIStroke(m_newStroke);
+      //if (m_oldStroke1) deleteVIStroke(m_oldStroke1);
+      //if (m_oldStroke2) deleteVIStroke(m_oldStroke2);
+      //if (m_isLastInBlock) delete m_fillInformation;
+      // delete stroke collection
+      for (VIStroke* currStroke : m_addedStrokes) {
+        deleteVIStroke(currStroke);
+      }
     }
 
     void undo() const override {
+      DEBUG_LOG("\nUndoLineExtensionAutoclose.undo() was called.\n");
+      //if (true) return;
+      // delete the strokes added
       TTool::Application* app = TTool::getApplication();
       if (!app) return;
       if (app->getCurrentFrame()->isEditingScene()) {
@@ -254,28 +275,42 @@ namespace {
       assert(!!image);
       if (!image) return;
       QMutexLocker lock(image->getMutex());
-      int strokeIndex = image->getStrokeIndexById(m_newStrokeId);
-      if (strokeIndex != -1) image->removeStroke(strokeIndex);
 
-      if (m_oldStroke1)
-        image->insertStrokeAt(cloneVIStroke(m_oldStroke1), m_pos1);
-      if (m_oldStroke2)
-        image->insertStrokeAt(cloneVIStroke(m_oldStroke2), m_pos2);
+      DEBUG_LOG("undo has made it to step 1. m_addedStrokeIDs.size():" << m_addedStrokeIDs.size() << "\n");
 
-      image->notifyChangedStrokes(m_changedStrokes, std::vector<TStroke*>());
+      for (int currStrokeId : m_addedStrokeIDs) {
+        int strokeIndex = image->getStrokeIndexById(currStrokeId);
+        if (strokeIndex != -1){
+          image->removeStroke(strokeIndex);
+          DEBUG_LOG("remove stroke index:" << strokeIndex << "\n");
+        }
+        //if (m_oldStroke1)
+        //  image->insertStrokeAt(cloneVIStroke(m_oldStroke1), m_pos1);
+        //if (m_oldStroke2)
+        //  image->insertStrokeAt(cloneVIStroke(m_oldStroke2), m_pos2);
+
+      }
+
+      DEBUG_LOG("undo has made it to step 2. m_isLastInBlock:" << m_isLastInBlock <<"\n");
+      //image->notifyChangedStrokes(m_changedStrokes, std::vector<TStroke*>());
 
       if (!m_isLastInBlock) return;
 
-      for (UINT i = 0; i < m_fillInformation->size(); i++) {
-        TRegion* reg = image->getRegion((*m_fillInformation)[i].m_regionId);
-        assert(reg);
-        if (reg) reg->setStyle((*m_fillInformation)[i].m_styleId);
-      }
+      //for (UINT i = 0; i < m_fillInformation->size(); i++) {
+      //  TRegion* reg = image->getRegion((*m_fillInformation)[i].m_regionId);
+      //  assert(reg);
+      //  if (reg) reg->setStyle((*m_fillInformation)[i].m_styleId);
+      //}
+      DEBUG_LOG("undo has made it to step 3\n");
       app->getCurrentXsheet()->notifyXsheetChanged();
+      DEBUG_LOG("undo has made it to step 4\n");
       notifyImageChanged();
+      DEBUG_LOG("undo has made it to step 5\n");
     }
 
     void redo() const override {
+      DEBUG_LOG("\nUndoLineExtensionAutoclose.redo() was called.\n");
+      //if (true) return;
       TTool::Application* app = TTool::getApplication();
       if (!app) return;
 
@@ -285,33 +320,44 @@ namespace {
       }
       else
         app->getCurrentFrame()->setFid(m_frameId);
+
       TVectorImageP image = m_level->getFrame(m_frameId, true);
       assert(!!image);
       if (!image) return;
       QMutexLocker lock(image->getMutex());
-      if (m_oldStroke1) {
-        int strokeIndex = image->getStrokeIndexById(m_oldStrokeId1);
-        if (strokeIndex != -1) image->removeStroke(strokeIndex);
+      
+      //if (m_oldStroke1) {
+      //  int strokeIndex = image->getStrokeIndexById(m_oldStrokeId1);
+      //  if (strokeIndex != -1) image->removeStroke(strokeIndex);
+      //}
+
+      //if (m_oldStroke2) {
+      //  int strokeIndex = image->getStrokeIndexById(m_oldStrokeId2);
+      //  if (strokeIndex != -1) image->removeStroke(strokeIndex);
+      //}
+
+      // iterate through the vector of gap close strokes and add them to the image
+
+      for (VIStroke *currStroke : m_addedStrokes) {
+        VIStroke *gapCloseStroke = cloneVIStroke(currStroke);
+        TStroke *myStroke        = gapCloseStroke->m_s;
+        image->addStroke(myStroke);
       }
 
-      if (m_oldStroke2) {
-        int strokeIndex = image->getStrokeIndexById(m_oldStrokeId2);
-        if (strokeIndex != -1) image->removeStroke(strokeIndex);
-      }
+      //VIStroke* stroke = cloneVIStroke(m_newStroke);
+      //image->insertStrokeAt(stroke, m_pos1 == -1 ? m_newStrokePos : m_pos1,
+      //  false);
 
-      VIStroke* stroke = cloneVIStroke(m_newStroke);
-      image->insertStrokeAt(stroke, m_pos1 == -1 ? m_newStrokePos : m_pos1,
-        false);
-
-      image->notifyChangedStrokes(m_changedStrokes, std::vector<TStroke*>());
+//      image->notifyChangedStrokes(m_changedStrokes, std::vector<TStroke*>());
 
       app->getCurrentXsheet()->notifyXsheetChanged();
       notifyImageChanged();
     }
 
     int getSize() const override {
-      return sizeof(*this) +
-        m_fillInformation->capacity() * sizeof(TFilledRegionInf) + 500;
+      return sizeof(*this);
+      //return sizeof(*this) +
+      //  m_fillInformation->capacity() * sizeof(TFilledRegionInf) + 500;
     }
 
     QString getToolName() override { return QString("Line Extension Autoclose Tool"); }
@@ -1085,10 +1131,33 @@ public:
 
     if (!vi || !stroke) return;
 
+
+    UndoLineExtensionAutoclose* lineExtensionAutoCloseUndo = 0;
+    TUndo* undo = 0;
+
+    TXshSimpleLevel* level =
+      TTool::getApplication()->getCurrentLevel()->getSimpleLevel();
+
+    //lineExtensionAutoCloseUndo = new UndoLineExtensionAutoclose(level, getCurrentFid(), minindex,
+    //  maxindex, fillInfo, v);
+
+
+    lineExtensionAutoCloseUndo = new UndoLineExtensionAutoclose(level, getCurrentFid());
+
+    if (lineExtensionAutoCloseUndo) {
+      //lineExtensionAutoCloseUndo->m_newStroke = cloneVIStroke(newStroke);
+      //lineExtensionAutoCloseUndo->m_newStrokeId = vi->getStroke(minindex)->getId();
+      // store the TVectorImage data for the current frame, for later undo
+      undo = lineExtensionAutoCloseUndo;
+    }
+
+    //TUndoManager::manager()->add(undo);
+
+
     //get closing points in two vectors startPoints and endPoints.
     std::vector<std::pair<int, double>> startPoints, endPoints;
-
-    getLineExtensionClosingPoints(stroke->getBBox(), m_autocloseFactor.getValue(), vi, startPoints, endPoints);
+    std::vector<std::pair<std::pair<double, double>, std::pair<double, double>>> lineExtensions;
+    getLineExtensionClosingPoints(stroke->getBBox(), m_autocloseFactor.getValue(), vi, startPoints, endPoints, lineExtensions, false, false);
 
     assert(startPoints.size() == endPoints.size());
 
@@ -1116,7 +1185,6 @@ public:
     //determine in bounds / out of bounds based on the selection lasso *************************************************************
 
     if (!startPoints.empty()) {
-      TUndoManager::manager()->beginBlock();
 
       TVectorImage tempImage;
       TStroke* selectionStroke = new TStroke(*stroke);
@@ -1197,6 +1265,11 @@ public:
             gapCloseStroke->setStyle(2);
             vi->addStroke(gapCloseStroke);
 
+            //add gapCloseStroke to undo vector
+            lineExtensionAutoCloseUndo->m_addedStrokeIDs.push_back(gapCloseStroke->getId());
+            VIStroke* newStroke = new VIStroke(gapCloseStroke, TGroupId());
+            lineExtensionAutoCloseUndo->m_addedStrokes.push_back(cloneVIStroke(newStroke));
+
             break;
           }
           else {
@@ -1205,8 +1278,20 @@ public:
           }
         }
       }
-      TUndoManager::manager()->endBlock();
       DEBUG_LOG("Total potential Gap Close Lines:" << startPoints.size() << ", in scope:" << inScopeCount << ", out of scope:" << outOfScopeCount << ", reversed so ignored:" << reverseCount << "\n");
+      // stroke ID so it can be deleted on undo
+      // stroke clone so it can be added on redo
+      // efficiency: populate the vector of clones during undo?
+      // in destructor, delete the vector of IDs, and vector of clones, if they exist
+      // eventually handle use of the tool:
+      //     in symmetry mode
+      //     across a frame range
+      if (inScopeCount>0){
+      TUndoManager::manager()->beginBlock();
+      undo = lineExtensionAutoCloseUndo;
+      TUndoManager::manager()->add(undo);
+      TUndoManager::manager()->endBlock();
+      }
     }
   } // end of - void tapeFreehand(const TVectorImageP& vi, TStroke* stroke)
   
@@ -1465,10 +1550,13 @@ public:
     if (vi && m_type.getValue() == FREEHAND) {
       DEBUG_LOG("leftButtonUp() FREEHAND\n");
       //if (m_polyline.hasSymmetryBrushes())
-      TUndoManager::manager()->beginBlock();
-      //tapeRect(vi, m_selectionRect);
+
       closeFreehand(pos);
+
+      TUndoManager::manager()->beginBlock();
+
       tapeFreehand(vi, m_stroke);
+      
       //if (m_polyline.hasSymmetryBrushes()) {
       //  for (int i = 1; i < m_polyline.getBrushCount(); i++) {
       //    TStroke* symmStroke = m_polyline.makeRectangleStroke(i);

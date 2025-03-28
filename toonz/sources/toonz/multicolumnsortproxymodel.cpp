@@ -16,7 +16,11 @@ bool MultiColumnSortProxyModel::lessThan(const QModelIndex &left,
   QString leftPrimary  = sourceModel()->data(leftPrimaryIndex).toString();
   QString rightPrimary = sourceModel()->data(rightPrimaryIndex).toString();
 
-  if (leftPrimary != rightPrimary) return leftPrimary < rightPrimary;
+  // sort as numbers because of double digit values
+  if (leftPrimary != rightPrimary)
+    return leftPrimary.toInt() < rightPrimary.toInt();
+
+//  if (leftPrimary != rightPrimary) return leftPrimary < rightPrimary;
 
   // No difference, check the secondary column.
   QModelIndex leftSecondaryIndex  = left.sibling(left.row(), secondaryColumn);

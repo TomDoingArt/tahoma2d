@@ -3,6 +3,10 @@
 #include "tundo.h"
 #include <deque>
 
+bool debug_mode = false;  // Set to false to disable debug output
+#define DEBUG_LOG(x) if (debug_mode) std::cout << x // << std::endl
+
+
 //-----------------------------------------------------------------------------
 
 namespace {
@@ -237,6 +241,7 @@ void TUndoManager::endBlock() {
 //-----------------------------------------------------------------------------
 
 bool TUndoManager::undo() {
+  DEBUG_LOG("\nTUndoManager::undo() called\n");
   assert(m_imp->m_blockStack.empty());
   UndoListIterator &it = m_imp->m_current;
   if (it != m_imp->m_undoList.begin()) {

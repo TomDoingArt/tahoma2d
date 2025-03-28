@@ -92,6 +92,10 @@ TEnv::IntVar ShowSymmetryGuide("ShowSymmetryGuide", 0);
 
 TEnv::StringVar SkipVersion("SkipVersion", "0.0");
 
+bool debug_mode = false;  // Set to false to disable debug output
+#define DEBUG_LOG(x) if (debug_mode) std::cout << x // << std::endl
+
+
 //=============================================================================
 namespace {
 //=============================================================================
@@ -1042,6 +1046,7 @@ void MainWindow::onUndo() {
 
   // do not use undo if tool is currently in use
   if (toolH->getTool()->isUndoable()) {
+    DEBUG_LOG("\nMainWindow::onUndo() was called\n");
     bool ret = TUndoManager::manager()->undo();
     if (!ret) DVGui::error(QObject::tr("No more Undo operations available."));
   }
@@ -1053,7 +1058,7 @@ void MainWindow::onRedo() {
   // Must wait for current save to finish, just in case
   while (TApp::instance()->isSaveInProgress())
     ;
-
+  DEBUG_LOG("\nMainWindow::onUndo() was called\n");
   bool ret = TUndoManager::manager()->redo();
   if (!ret) DVGui::error(QObject::tr("No more Redo operations available."));
 }

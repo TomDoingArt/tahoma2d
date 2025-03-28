@@ -63,8 +63,10 @@
 #include "toonz/stagevisitor.h"
 #include "../common/tvectorimage/tvectorimageP.h"
 
-bool debug_mode = false;  // Set to false to disable debug output
+bool debug_mode = true;  // Set to false to disable debug output
 #define DEBUG_LOG(x) if (debug_mode) std::cout << x // << std::endl
+
+double currentCloseFactor = -1.0; // Use this to track the current close distance value, to know when it changes.
 
 
 //**********************************************************************************************
@@ -762,7 +764,30 @@ static void buildAutocloseImage(
     points[1]       = 0.5 * (p1 + p2);
     points[2]       = p2;
     points[0].thick = points[1].thick = points[2].thick = 0.0;
-    TStroke *auxStroke                                  = new TStroke(points);
+    TStroke *auxStroke = new TStroke(points);
+    auxStroke->setStyle(2);
+    vaux->addStroke(auxStroke);
+  }
+}
+
+static void buildLineExtensionAutocloseImage(
+  TVectorImage* vaux, TVectorImage* vi,
+  const std::vector<std::pair<std::pair<double, double>, std::pair<double, double>>> lineExtensions) {
+  DEBUG_LOG("buildLineExtensionAutocloseImage\n");
+  double thick = 0.0;
+
+  for (UINT i = 0; i < lineExtensions.size(); i++) {
+    DEBUG_LOG("lineExtension: " << i << ", from x:" << lineExtensions.at(i).first.first << ", y : " << lineExtensions.at(i).first.second << ", to x:" << lineExtensions.at(i).second.first << ", y : " << lineExtensions.at(i).second.second << "\n");
+    
+    TThickPoint p1 = TThickPoint(lineExtensions.at(i).first.first, lineExtensions.at(i).first.second,thick);
+    TThickPoint p2 = TThickPoint(lineExtensions.at(i).second.first, lineExtensions.at(i).second.second, thick);
+
+    std::vector<TThickPoint> points(3);
+    points[0] = p1;
+    points[1] = 0.5 * (p1 + p2);
+    points[2] = p2;
+    points[0].thick = points[1].thick = points[2].thick = 0.0;
+    TStroke* auxStroke = new TStroke(points);
     auxStroke->setStyle(2);
     vaux->addStroke(auxStroke);
   }
@@ -795,42 +820,42 @@ static void drawAutocloses(TVectorImage *vi, TVectorRenderData &rd) {
 
 //-----------------------------------------------------------------------------
 
-  std::pair<double, double> extendQuadraticBezier(std::pair<double, double> P0,
-                                                std::pair<double, double> P1,
-                                                std::pair<double, double> P2,
-                                                double L,
-                                                bool reverse = false) {
-  double dx, dy, length, unit_dx, unit_dy, x3, y3;
-
-  if (reverse) {
-    // Calculate the tangent vector at the start point P0
-    dx = P1.first - P0.first;
-    dy = P1.second - P0.second;
-  } else {
-    // Calculate the tangent vector at the endpoint P2
-    dx = P2.first - P1.first;
-    dy = P2.second - P1.second;
-  }
-
-  // Calculate the magnitude of the tangent vector
-  length = sqrt(dx * dx + dy * dy);
-
-  // Normalize the tangent vector
-  unit_dx = dx / length;
-  unit_dy = dy / length;
-
-  if (reverse) {
-    // Calculate the new start point P3 by extending in the reverse direction
-    x3 = P0.first - L * unit_dx;
-    y3 = P0.second - L * unit_dy;
-  } else {
-    // Calculate the new endpoint P3 by extending in the forward direction
-    x3 = P2.first + L * unit_dx;
-    y3 = P2.second + L * unit_dy;
-  }
-
-  return std::make_pair(x3, y3);
-}
+//  std::pair<double, double> extendQuadraticBezier(std::pair<double, double> P0,
+//                                                std::pair<double, double> P1,
+//                                                std::pair<double, double> P2,
+//                                                double L,
+//                                                bool reverse = false) {
+//  double dx, dy, length, unit_dx, unit_dy, x3, y3;
+//
+//  if (reverse) {
+//    // Calculate the tangent vector at the start point P0
+//    dx = P1.first - P0.first;
+//    dy = P1.second - P0.second;
+//  } else {
+//    // Calculate the tangent vector at the endpoint P2
+//    dx = P2.first - P1.first;
+//    dy = P2.second - P1.second;
+//  }
+//
+//  // Calculate the magnitude of the tangent vector
+//  length = sqrt(dx * dx + dy * dy);
+//
+//  // Normalize the tangent vector
+//  unit_dx = dx / length;
+//  unit_dy = dy / length;
+//
+//  if (reverse) {
+//    // Calculate the new start point P3 by extending in the reverse direction
+//    x3 = P0.first - L * unit_dx;
+//    y3 = P0.second - L * unit_dy;
+//  } else {
+//    // Calculate the new endpoint P3 by extending in the forward direction
+//    x3 = P2.first + L * unit_dx;
+//    y3 = P2.second + L * unit_dy;
+//  }
+//
+//  return std::make_pair(x3, y3);
+//}
 
 //-----------------------------------------------------------------------------
 
@@ -845,7 +870,7 @@ static void drawAutocloses(TVectorImage *vi, TVectorRenderData &rd) {
     int survives;
   };
 
-
+  /*
   void determineSurvivingIntersections(std::vector<Intersection>& intersections, std::vector<Intersection>& uniqueIntersections) {
 
     //Preparation: sort the list in s1 and W order.
@@ -956,6 +981,7 @@ static void drawAutocloses(TVectorImage *vi, TVectorRenderData &rd) {
             }
           }
           */
+/*
         }
       }
     }
@@ -1157,115 +1183,42 @@ static void drawAutocloses(TVectorImage *vi, TVectorRenderData &rd) {
       DEBUG_LOG("Intersection s1:" << currIntersection.s1Index << " isExt:" << currIntersection.s2IsExtension << " s2:" << currIntersection.s2Index << " s2W:" << currIntersection.w << " x:" << currIntersection.x << " y:" << currIntersection.y << " survives:" << currIntersection.survives << "\n");
     }
   }
-
-/*
-bool isSurvivingIntersection(std::vector<Intersection>&intersections, 
-  std::vector<Intersection>& uniqueIntersections, 
-  Intersection& currIntersection) {
-
-  // take in a row from intersections, decide if it is a surviving intersection.
-  // check the list of confirmed surviving intersections.
-  // Confirmed? return true.
-  //
-  // unambiguous terminating conditions:
-  //    s1 and s2 are their lowest W values, a perfect intersection.
-  //    s1 is its lowest W value and s2 is a normal line, a perfect intersection.
-  // 
-  // If determined an intersection survives? 
-  //     then add to the confirmed surviving intersections list.
-  // 
-  // No terminating condition? 
-  //     s2 is not a confirmed intersection.
-  //     make a recursive call until a terminating condition is reached.
-
-  UINT s1Index = currIntersection.s1Index;
-  bool s2IsExtension = currIntersection.s2IsExtension;
-  UINT s2Index = currIntersection.s2Index;
-  double w = currIntersection.w;
-  double x = currIntersection.x;
-  double y = currIntersection.y;
-  int survives = currIntersection.survives;
-
-  auto it =
-      std::find_if(uniqueIntersections.begin(), uniqueIntersections.end(),
-                   [&s1Index, &s2Index](const Intersection &inter) {
-                     return inter.s1Index == s1Index && inter.s2Index == s2Index;
-                   });
-
-  if (it != uniqueIntersections.end()) {
-    // this intersection has the lowest W value for the intersection
-    if (!s2IsExtension) {
-      // this intersection is with a line, , a perfect intersection
-      currIntersection.survives = 1;
-      return true;
-    }
-    else {
-      if (s1Index > s2Index) { 
-        // resolve duplicate lines by rejecting intersections from one direction, s1 higher than s2
-        currIntersection.survives = -1;
-        return false; 
-      }
-      it =
-        std::find_if(uniqueIntersections.begin(), uniqueIntersections.end(),
-          [&s1Index, &s2Index, &currIntersection](const Intersection& inter) {
-              if (inter.s1Index == s2Index && inter.s2Index == s1Index) {
-                currIntersection.survives = 1;
-                return true;
-              }
-              else {
-                currIntersection.survives = -1;
-                return false;
-              }
-          });
-      if (it != uniqueIntersections.end()) {
-        // s2 has its lowest W value for this intersection, a perfect intersection
-        currIntersection.survives = 1;
-        return true;
-      }
-      else {
-        // the current intersection is not in the uniqueIntersections list.
-        // check further
-        //return isSurvivingIntersection(intersections, uniqueIntersections, currIntersection);
-        currIntersection.survives = 0;
-        return false;
-      }
-    }
-  }
-  else {
-    // check further
-    currIntersection.survives = 0;
-    return false;
-  }
-
-}
-
-*/
-
+  */
 //-----------------------------------------------------------------------------
 
 /*! Draw lines for the line extension auto close method.
 */
 static void drawLineExtensionAutocloses(TVectorImage* vi, TVectorRenderData& rd) {
+  if (currentCloseFactor == AutocloseFactor) {
+    DEBUG_LOG("NO CHANGE in drawLineExtensionAutocloses, autoCloseFactor:" << AutocloseFactor << " is the same as:" << currentCloseFactor << "\n");
+    debug_mode = false;
+  }
+  else {
+    debug_mode = true;
+  }
   static TPalette* plt = 0;
-
   const int ROUNDINGFACTOR = 4;
-  DEBUG_LOG("\n\n===================== drawLineExtensionAutocloses - begin ==================================================================\n\n");
+  currentCloseFactor = AutocloseFactor;
+  DEBUG_LOG("\n\n===================== stagevisitor::drawLineExtensionAutocloses - begin ==================================================================\n\n");
   DEBUG_LOG("drawLineExtensionAutocloses, autoCloseFactor:" << AutocloseFactor << "\n");
+  int colorstyle = 0;
   if (!plt) {
     plt = new TPalette();
     const TPixelRGBM32 lineExtensionColor(0, 0xFF, 0xFF, 0xFF / 2);
-    plt->addStyle(lineExtensionColor);
+    colorstyle = plt->addStyle(lineExtensionColor);
   }
-
   std::vector<std::pair<int, double>> startPoints, endPoints;
-  // calculate the points for the candidate closing lines
-  // ToDo TomDoingArt - will this function call be needed?
-  //getLineExtensionClosingPoints(vi->getBBox(), AutocloseFactor, vi, startPoints, endPoints);
-  
+  std::vector<std::pair<std::pair<double, double>, std::pair<double, double>>> lineExtensions;
+  getLineExtensionClosingPoints(vi->getBBox(), AutocloseFactor, vi, startPoints, endPoints, lineExtensions, debug_mode, true);
   UINT strokeCount = vi->getStrokeCount();
-
   TVectorImage* vaux = new TVectorImage();
 
+  rd.m_palette = plt;
+  buildAutocloseImage(vaux, vi, startPoints, endPoints);
+  DEBUG_LOG("drawLineExtensionAutocloses, lineExtensions.size():" << lineExtensions.size() << "\n");
+  buildLineExtensionAutocloseImage(vaux, vi, lineExtensions);
+
+/*
   std::vector <int> listOfExtensions;
 
   for (UINT i = 0; i < strokeCount; i++) {
@@ -1631,12 +1584,8 @@ static void drawLineExtensionAutocloses(TVectorImage* vi, TVectorRenderData& rd)
   DEBUG_LOG("end - Check extensions against other extensions. ---------------------------------------------------------------\n");
 
 
-  /* 
-  
-  Loop through the intersection list.
-  Remove intersections of each line extension except for the one which is closest to a W value of 0.
-  
-  */ 
+  //Loop through the intersection list.
+  //Remove intersections of each line extension except for the one which is closest to a W value of 0.
 
   // Sorting by s1Index first, and w second if s1Index is equal
   std::sort(intersectionList.begin(), intersectionList.end(),
@@ -1683,11 +1632,7 @@ static void drawLineExtensionAutocloses(TVectorImage* vi, TVectorRenderData& rd)
 
   // ===================================================================================================================
 
-  /*
-  
-  Loop through the surviving intersection list and create updated extension lines.
-  
-  */
+  // Loop through the surviving intersection list and create updated extension lines.
   
   for (Intersection currIntersection : intersectionList) { // start of - outer loop, the list of intersections
 
@@ -1800,15 +1745,8 @@ static void drawLineExtensionAutocloses(TVectorImage* vi, TVectorRenderData& rd)
     }
   } // end of - outer loop, the list of intersections
 
-  
 
-
-
-  /*
-  
-  Loop through the delete list in descending order and remove the listed strokes from the line extensions.
-  
-  */
+  // Loop through the delete list in descending order and remove the listed strokes from the line extensions.
 
 // Sort the vector first
   std::sort(listOfExtensionsToDelete.begin(), listOfExtensionsToDelete.end(), std::greater<int>());
@@ -1826,10 +1764,129 @@ static void drawLineExtensionAutocloses(TVectorImage* vi, TVectorRenderData& rd)
   }
 
   listOfExtensionsToDelete.clear(); // is this needed? The list will be reset during the next invocation of drawLineExtensionAutocloses()
-    
 
+  */
 
+if (false){
+//iterate through the startPoints and endPoints, add lines to vaux
+assert(startPoints.size() == endPoints.size());
 
+for (UINT i = 0; i < startPoints.size(); i++) {
+  DEBUG_LOG("startPoints[" << i << "] stroke:" << vi->getStroke(startPoints[i].first)->getId() << " , W:" << startPoints[i].second << "\n");
+  DEBUG_LOG("  endPoints[" << i << "] stroke:" << vi->getStroke(endPoints[i].first)->getId() << " , W:" << endPoints[i].second << "\n");
+}
+
+if (!startPoints.empty()) {
+  //TUndoManager::manager()->beginBlock();
+
+  TVectorImage tempImage = vaux;
+//  TStroke* selectionStroke = new TStroke(*stroke);
+//  DEBUG_LOG("x0:y0 " << selectionStroke->getBBox().x0 << ":" << selectionStroke->getBBox().y0 << ", x1:y1 " << selectionStroke->getBBox().x1 << ":" << selectionStroke->getBBox().y1 << "\n");
+//  tempImage.addStroke(selectionStroke);
+  tempImage.findRegions();
+  //int strokeIndex;
+  int regionIndex, colorStyle;
+  colorStyle = 2; //temporarily set to red
+
+  std::vector<std::pair<int, double>> inScopeStrokes;
+
+  int inScopeCount = 0, outOfScopeCount = 0, reverseCount = 0;
+
+  for (std::size_t i = 0; i < startPoints.size(); ++i) {
+
+    DEBUG_LOG("Candidate gap close line from stroke:" << vi->getStroke(startPoints[i].first)->getId() << ", W:" << startPoints[i].second);
+    DEBUG_LOG(" to stroke:" << vi->getStroke(endPoints[i].first)->getId() << ", W:" << endPoints[i].second << "\n");
+
+    if ((startPoints[i].second == 0.0 || startPoints[i].second == 1.0)
+      && (endPoints[i].second == 0.0 || endPoints[i].second == 1.0)
+      && ((startPoints[i].first > endPoints[i].first)
+        || (startPoints[i].first == endPoints[i].first && startPoints[i].second > endPoints[i].second)
+        )
+      ) {
+      DEBUG_LOG("    is in reverse direction therefore considered a likely duplicate and ignored\n");
+      reverseCount++;
+      continue;
+    }
+
+    TStroke* startStroke = vi->getStroke(startPoints[i].first);
+    TStroke* endStroke = vi->getStroke(endPoints[i].first);
+    DEBUG_LOG("  endpoints of from stroke:" << startStroke->getId() << ", W0:" << startStroke->getPoint(0.0).x << ":" << startStroke->getPoint(0.0).y << ", W1:" << startStroke->getPoint(1.0).x << ":" << startStroke->getPoint(1.0).y << "\n");
+    DEBUG_LOG("    endpoints of to stroke:" << endStroke->getId() << ", W0:" << endStroke->getPoint(0.0).x << ":" << endStroke->getPoint(0.0).y << ", W1:" << endStroke->getPoint(1.0).x << ":" << endStroke->getPoint(1.0).y << "\n");
+    DEBUG_LOG("    region count:" << tempImage.getRegionCount() << "\n");
+    //for (regionIndex = 0; regionIndex < (int)tempImage.getRegionCount();
+    //  regionIndex++) {
+    //  TRegion* region = tempImage.getRegion(regionIndex);
+
+    //  TPointD startPoint = startStroke->getPoint(startPoints[i].second);
+    //  TPointD endPoint = endStroke->getPoint(endPoints[i].second);
+
+    //  DEBUG_LOG("  region:" << regionIndex);
+    //  DEBUG_LOG(", startPoint:" << startPoint.x << ":" << startPoint.y);
+
+    //  if (region->contains(startPoint)) {
+    //    DEBUG_LOG(" In scope");
+    //  }
+    //  else {
+    //    DEBUG_LOG(" Not in scope");
+    //  }
+
+    //  DEBUG_LOG(", endPoint:" << endPoint.x << ":" << endPoint.y);
+    //  if (region->contains(endPoint)) {
+    //    DEBUG_LOG(" In scope\n");
+    //  }
+    //  else {
+    //    DEBUG_LOG(" Not in scope\n");
+    //  }
+
+      //if (region->contains(startPoint) && region->contains(endPoint)) {
+        //DEBUG_LOG(" In scope\n");
+        DEBUG_LOG(" Add to vaux for display\n");
+        inScopeCount++;
+
+        // add this close gap stroke to vi
+        std::vector<TThickPoint> points(3);
+        TThickPoint p0;
+        TThickPoint p2;
+
+        //p0 = startPoint;
+        //p2 = endPoint;
+
+        points[0] = p0;
+        points[1] = 0.5 * (p0 + p2);
+        points[2] = p2;
+        points[0].thick = points[1].thick = points[2].thick = 0.0;
+        TStroke* gapCloseStroke = new TStroke(points);
+        //gapCloseStroke->setStyle(colorstyle);
+        gapCloseStroke->setStyle(2);
+        vaux->addStroke(gapCloseStroke);
+
+        //add gapCloseStroke to undo vector
+        //lineExtensionAutoCloseUndo->m_addedStrokeIDs.push_back(gapCloseStroke->getId());
+        //VIStroke* newStroke = new VIStroke(gapCloseStroke, TGroupId());
+        //lineExtensionAutoCloseUndo->m_addedStrokes.push_back(cloneVIStroke(newStroke));
+
+        //break;
+      //}
+      //else {
+      //  DEBUG_LOG("   Not in scope\n");
+      //  outOfScopeCount++;
+      //}
+    //}
+  }
+
+  // stroke ID so it can be deleted on undo
+  // stroke clone so it can be added on redo
+  // efficiency: populate the vector of clones during undo?
+  // in destructor, delete the vector of IDs, and vector of clones, if they exist
+  // eventually handle use of the tool:
+  //     in symmetry mode
+  //     across a frame range
+  //undo = lineExtensionAutoCloseUndo;
+  //TUndoManager::manager()->add(undo);
+  //TUndoManager::manager()->endBlock();
+  DEBUG_LOG("Total potential Gap Close Lines:" << startPoints.size() << ", in scope:" << inScopeCount << ", out of scope:" << outOfScopeCount << ", reversed so ignored:" << reverseCount << "\n");
+}
+}
   // temporarily disable fill check, to preserve the gap indicator color
   bool tCheckEnabledOriginal = rd.m_tcheckEnabled;
   rd.m_tcheckEnabled = false;
@@ -1838,7 +1895,7 @@ static void drawLineExtensionAutocloses(TVectorImage* vi, TVectorRenderData& rd)
   // restore original value
   rd.m_tcheckEnabled = tCheckEnabledOriginal;
   delete vaux;
-  DEBUG_LOG("===================== drawLineExtensionAutocloses - end ==================================================================\n");
+  DEBUG_LOG("===================== stagevisitor::drawLineExtensionAutocloses - end ==================================================================\n");
 }
 
 //-----------------------------------------------------------------------------
