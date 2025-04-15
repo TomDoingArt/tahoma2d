@@ -31,6 +31,8 @@
 #include <QContextMenuEvent>
 #include <QStyle>
 
+#include "toonz/stage2.h"
+
 TEnv::IntVar ShowAllToolsToggle("ShowAllToolsToggle", 1);
 
 //=============================================================================
@@ -343,6 +345,18 @@ void Toolbar::onToolChanged() {
   ToolHandle *toolHandle = TApp::instance()->getCurrentTool();
   TTool *tool            = toolHandle->getTool();
   std::string toolName   = tool->getName();
+    
+  // Update ToonzCheck programmatically based on the active tool
+  std::cout << "The tool name is:" << toolName << "\n";
+  ToonzCheck* check = ToonzCheck::instance();
+
+  if (toolName == T_Tape || toolName == T_Selection || toolName == T_ControlPointEditor) {
+    check->setCheck(ToonzCheck::eLineExtensionGapClose);
+  }
+  else {
+    check->clearCheck(ToonzCheck::eLineExtensionGapClose);
+  }
+
   QAction *act = CommandManager::instance()->getAction(toolName.c_str());
   if (!act || act->isChecked()) return;
   act->setChecked(true);

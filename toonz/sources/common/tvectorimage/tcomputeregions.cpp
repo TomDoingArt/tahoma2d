@@ -21,6 +21,18 @@
 
 #include <algorithm>
 
+#include "tpalette.h"
+#include "tmathutil.h"
+#include "tenv.h"
+
+
+bool debug_mode_1 = false;  // Set to false to disable debug output
+#define DEBUG_LOG(x) if (debug_mode_1) std::cout << x // << std::endl
+// TomDoingArt ---- TapeTool Freehand - end
+
+
+
+
 #if !defined(TNZ_LITTLE_ENDIAN)
 TNZ_LITTLE_ENDIAN undefined !!
 #endif
@@ -1031,8 +1043,8 @@ void markDeadIntersections(VIList<Intersection> &intList, Intersection *p) {
 
 //-----------------------------------------------------------------------------
 
-// se cross val era 0, cerco di spostarmi un po' su w per vedere come sono
-// orientate le tangenti agli stroke...
+// If cross-validation is 0, I try to move a bit on w to see how the tangents to
+// the strokes are oriented...
 static double nearCrossVal(TStroke *s0, double w0, TStroke *s1, double w1) {
   double ltot0 = s0->getLength();
   double ltot1 = s1->getLength();
@@ -2538,7 +2550,7 @@ void TVectorImage::Imp::findIntersections() {
   map<int, VIStroke *>::iterator it, it_b = intData.m_autocloseMap.begin();
   map<int, VIStroke *>::iterator it_e = intData.m_autocloseMap.end();
 
-  // prima cerco le intersezioni tra nuove strokes e vecchi autoclose
+  // First, I look for intersections between new strokes and old autoclose.
   for (i = 0; i < strokeSize; i++) {
     TStroke *s1 = strokeArray[i]->m_s;
     if (!strokeArray[i]->m_isNewForFill || strokeArray[i]->m_isPoint) continue;
@@ -2567,7 +2579,7 @@ void TVectorImage::Imp::findIntersections() {
   }
 #endif
 
-  // poi,  intersezioni tra stroke, in cui almeno uno dei due deve essere nuovo
+  // then, intersections between strokes, where at least one of the two must be new
 
   map<pair<int, int>, vector<DoublePair>> intersectionMap;
 
@@ -2599,7 +2611,7 @@ void TVectorImage::Imp::findIntersections() {
 
         if (!strokeArray[i]->m_isNewForFill &&
             size != intData.m_intList.size() &&
-            !strokeArray[i]->m_edgeList.empty())  // aggiunte nuove intersezioni
+            !strokeArray[i]->m_edgeList.empty())  // added new intersections
         {
           intData.m_intersectedStrokeArray.push_back(IntersectedStrokeEdges(i));
           list<TEdge *> &_list =
@@ -2712,13 +2724,13 @@ void TVectorImage::Imp::findIntersections() {
     strokeArray[i]->m_edgeList.clear();
   }
 
-  // si devono cercare le intersezioni con i segmenti aggiunti per l'autoclose
+  // Intersections with the segments added for autoclose need to be checked.
 
   for (i = strokeSize; i < (int)strokeArray.size(); ++i) {
     TStroke *s1 = strokeArray[i]->m_s;
 
     for (j = i + 1; j < (int)strokeArray.size();
-         ++j)  // intersezione segmento-segmento
+         ++j)  // segment-segment intersection
     {
       if (strokeArray[i]->m_groupId != strokeArray[j]->m_groupId) continue;
 
@@ -2728,7 +2740,7 @@ void TVectorImage::Imp::findIntersections() {
         addIntersections(intData, strokeArray, i, j, parIntersections,
                          strokeSize, isVectorized);
     }
-    for (j = 0; j < strokeSize; ++j)  // intersezione segmento-curva
+    for (j = 0; j < strokeSize; ++j)  // segment-curve intersection
     {
       if (strokeArray[j]->m_isPoint) continue;
       if (strokeArray[i]->m_groupId != strokeArray[j]->m_groupId) continue;
@@ -2742,8 +2754,8 @@ void TVectorImage::Imp::findIntersections() {
   }
 }
 
-// la struttura delle intersezioni viene poi visitata per trovare
-// i link tra un'intersezione e la successiva
+// The intersection structure is then traversed to find 
+// the links between one intersection and the next
 
 //-----------------------------------------------------------------------------
 void TVectorImage::Imp::deleteRegionsData() {
@@ -2773,8 +2785,8 @@ int TVectorImage::Imp::computeIntersections() {
 
   findNearestIntersection(intData.m_intList);
 
-  // for (it1=intData.m_intList.begin(); it1!=intData.m_intList.end();) //la
-  // faccio qui, e non nella eraseIntersection. vedi commento li'.
+  // for (it1=intData.m_intList.begin(); it1!=intData.m_intList.end();)
+  // I do it here, and not in eraseIntersection. See the comment there.
   eraseDeadIntersections();
 
   for (p1 = intData.m_intList.first(); p1; p1 = p1->next())
@@ -3847,4 +3859,835 @@ void TVectorImage::Imp::restoreEndpoints(int index, TStroke *oldStroke, double o
 #ifdef _DEBUG
   checkIntersections();
 #endif
+}
+
+// Function to rotate a vector by a given angle in radians
+std::pair<double, double> rotateVector(double dx, double dy, double angle) {
+  double rotated_dx = dx * cos(angle) - dy * sin(angle);
+  double rotated_dy = dx * sin(angle) + dy * cos(angle);
+  return std::make_pair(rotated_dx, rotated_dy);
+}
+
+std::pair<double, double> extendQuadraticBezier(std::pair<double, double> P0,
+  std::pair<double, double> P1,
+  std::pair<double, double> P2,
+  double L,
+  double angle, // Angle to rotate the tangent vector, in radians
+  bool reverse = false) {
+  double dx, dy, length, unit_dx, unit_dy, x3, y3;
+
+  if (reverse) {
+    // Calculate the tangent vector at the start point P0
+    dx = P1.first - P0.first;
+    dy = P1.second - P0.second;
+  }
+  else {
+    // Calculate the tangent vector at the endpoint P2
+    dx = P2.first - P1.first;
+    dy = P2.second - P1.second;
+  }
+
+  // Calculate the magnitude of the tangent vector
+  length = sqrt(dx * dx + dy * dy);
+
+  // Normalize the tangent vector
+  unit_dx = dx / length;
+  unit_dy = dy / length;
+
+  // Rotate the tangent vector by the specified angle
+  auto rotated_vector = rotateVector(unit_dx, unit_dy, angle);
+  unit_dx = rotated_vector.first;
+  unit_dy = rotated_vector.second;
+
+  if (reverse) {
+    // Calculate the new start point P3 by extending in the rotated reverse direction
+    x3 = P0.first - L * unit_dx;
+    y3 = P0.second - L * unit_dy;
+  }
+  else {
+    // Calculate the new endpoint P3 by extending in the rotated forward direction
+    x3 = P2.first + L * unit_dx;
+    y3 = P2.second + L * unit_dy;
+  }
+
+  return std::make_pair(x3, y3);
+}
+
+struct EndpointData {
+  UINT viIndex;
+  bool extendsW0;
+  bool open;
+};
+
+struct ExtensionData {
+  int vauxIndex;
+  UINT endpointIndex;
+};
+
+struct IntersectionTemp {
+  UINT s1Index;
+  double s1W;
+  bool s1ExtendsW0;
+  UINT s2Index;
+  bool s2IsExtension;
+  double distance;
+  double s2W;
+  double x;
+  double y;
+  int survives;
+};
+
+//-----------------------------------------------------------------------------
+
+void determineSurvivingIntersections(std::vector<IntersectionTemp>&intersectionList,
+    std::vector<EndpointData>&listOfEndpoints,
+    std::vector<ExtensionData>&listOfExtensions) {
+
+  DEBUG_LOG("\nDetermine surviving intersectionList\n");
+  
+  //Preparation: sort the list. Currently done before the call to this function.
+  //DEBUG_LOG("\nSort the list of intersectionList ---------------------------------------------------------------\n");
+  // Sort the list of intersections
+  
+  std::sort(intersectionList.begin(), intersectionList.end(),
+    [](const IntersectionTemp& a, const IntersectionTemp& b) {
+      return (a.distance < b.distance);
+    });
+
+  //DEBUG_LOG("\nIntersection List sorted:" << "\n");
+  //for (IntersectionTemp currIntersection : intersectionList) {
+  //  DEBUG_LOG(currIntersection.s1Index << ":" << " to ");
+  //  DEBUG_LOG(currIntersection.s2Index << ":");
+  //  if (currIntersection.s2IsExtension) {
+  //    DEBUG_LOG(currIntersection.s2Index);
+  //  }
+  //  else {
+  //    DEBUG_LOG(currIntersection.s2Index);
+  //  }
+  //  DEBUG_LOG(" isExt:" << currIntersection.s2IsExtension);
+  //  DEBUG_LOG(", distance:" << currIntersection.distance);
+  //  DEBUG_LOG(", s1W:" << currIntersection.s1W);
+  //  DEBUG_LOG(", s2W:" << currIntersection.s2W << " x:" << currIntersection.x << " y:" << currIntersection.y);
+  //  DEBUG_LOG(" survives:" << currIntersection.survives << "\n");
+  //}
+
+  // if s1 is open, survives, else, does not survive
+
+  for (auto& inter : intersectionList) {
+    DEBUG_LOG("s1:" << inter.s1Index << " to " << inter.s2Index << ", isExtension:" << inter.s2IsExtension << ", extends W0:" << inter.s1ExtendsW0 << ", s1W:" << inter.s1W << ", s2W:" << inter.s2W);
+
+    if (inter.survives == -1) {
+      //already marked as non-surviving, so skip this intersection;
+      DEBUG_LOG(" - already marked as non-surviving, so skip this intersection.\n");
+      continue;
+    }
+    // check that the s1 extensions is from an open endpoint.
+    auto & s1Endpoint = listOfEndpoints[listOfExtensions[inter.s1Index].endpointIndex];
+    if (s1Endpoint.open) {
+      inter.survives = 1;
+      s1Endpoint.open = false;
+
+      DEBUG_LOG(" - s1 is open, mark it as surviving and mark it as closed.\n");
+
+      if (inter.s2IsExtension) {
+        
+        auto & s2Endpoint = listOfEndpoints[listOfExtensions[inter.s2Index].endpointIndex];
+        if (s2Endpoint.open) {
+          s2Endpoint.open = false;
+
+          DEBUG_LOG(" - s2 is an extension and also open, mark it as closed.\n");
+        }
+      }
+    }
+    else {
+      inter.survives = -1;
+      DEBUG_LOG(" - s1 is not open, mark this intersection non-surviving.\n");
+    }
+  }
+
+  DEBUG_LOG("\nResults:" << "\n");
+  for (const auto& currIntersection : intersectionList) {
+    DEBUG_LOG("Intersection s1:" << currIntersection.s1Index);
+    DEBUG_LOG(" s1W:" << currIntersection.s1W);
+    DEBUG_LOG(" isExt:" << currIntersection.s2IsExtension);
+    DEBUG_LOG(" s2:" << currIntersection.s2Index);
+    DEBUG_LOG(" s2W:" << currIntersection.s2W << " x:" << currIntersection.x << " y:" << currIntersection.y << " survives:" << currIntersection.survives << "\n");
+  }
+
+} // end of determineSurvivingIntersections()
+
+TEnv::DoubleVar AutocloseFactor("InknpaintAutocloseFactor", 4.0);
+
+//-------------------------------------------------------------------------------------------------------
+bool hasEndpointOverlap(const TVectorImageP& vi, UINT skipIndex, const TThickPoint& point) {
+  for (UINT j = 0; j < vi->getStrokeCount(); j++) {
+    if (j == skipIndex) continue;
+    TStroke* s = vi->getStroke(j);
+    if ((s->getThickPoint(0).x == point.x && s->getThickPoint(0).y == point.y) ||
+      (s->getThickPoint(1).x == point.x && s->getThickPoint(1).y == point.y)) {
+      DEBUG_LOG("Endpoint overlaps with stroke Id:" << s->getId() << "\n");
+      return true;
+    }
+  }
+  return false;
+}
+
+//-------------------------------------------------------------------------------------------------------
+void addExtensionStroke(
+  TVectorImage & vaux,
+  std::vector<ExtensionData>& extensionList,
+  const TThickPoint& from,
+  const std::pair<double, double>& to,
+  UINT originStrokeIndex,
+  UINT endpointIndex,
+  bool isStart,
+  int style
+) {
+
+  TThickPoint toPoint(to.first, to.second);
+  std::vector<TThickPoint> points = {
+  from,
+  0.5 * (from + toPoint),
+  toPoint
+   };
+
+  points[0].thick = points[1].thick = points[2].thick = 0.0;
+
+  TStroke stroke(points);
+  stroke.setStyle(style);
+  extensionList.push_back(ExtensionData{
+    vaux.addStroke(new TStroke(stroke)), // make clear this stroke object is now vaux's responsibility
+    endpointIndex,
+    });
+}
+
+//---------------------------------------------------------------------------------
+//! Calculate closing lines using the line extension method rather than the proximity method.
+
+void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
+  vector<pair<int, double>>& startPoints,
+  vector<pair<int, double>>& endPoints,
+  vector<pair<pair<double, double>, pair<double, double>>>& lineExtensions,
+  bool debugMessages, bool returnLineExtensions) {
+  debug_mode_1 = debugMessages;
+  DEBUG_LOG("getLineExtensionClosingPoints\n");
+  const int lineExtensionColorstyle = 2;
+  UINT strokeCount = vi->getStrokeCount();
+
+  // fac is a factor to enlarge a bbox by when determining fill? Not used at this time. It was carried forward when this function was made from a copy of getClosingPoints.
+
+  const int ROUNDINGFACTOR = 4;
+  DEBUG_LOG("\n\n===================== getLineExtensionClosingPoints - begin ==================================================================\n\n");
+  DEBUG_LOG("getLineExtensionClosingPoints, autoCloseFactor:" << AutocloseFactor << "\n");
+
+  TVectorImage vaux; // the gap close candidate lines
+
+  std::vector <EndpointData> endpointList;
+  std::vector <ExtensionData> extensionList;
+
+  // add initial line extensions - start *****************************************************************
+  for (UINT i = 0; i < strokeCount; i++) {
+    TStroke* s1 = vi->getStroke(i); // get a stroke from the original drawing, vi
+
+    // ignore strokes which are 0 thickness
+    if (s1->getMaxThickness() == 0) {
+      DEBUG_LOG("thickness is 0 so no extensions for stroke Id:" << s1->getId() << "\n");
+      continue;
+    }
+
+    // ignore strokes which are expected to be color holding lines rather than visible lines
+    if (s1->getStyle() == lineExtensionColorstyle) {
+      DEBUG_LOG("colorStyle is " << lineExtensionColorstyle << " so no extensions for stroke Id:" << s1->getId() << "\n");
+      continue;
+    }
+
+    // exclude lines from getting extensions based on the TRectD as a rough form in-scope boundary.
+    // for a more accurate boundary, consider passing the lasso stroke in the function call and using it in new algorithm instead of this bbox rectangle algorithm.
+    if (!rect.overlaps(s1->getBBox())) continue;
+    if (s1->getChunkCount() == 1) continue; // single point, not a line
+
+    // --- ENDPOINT W0  ---
+    TThickPoint* endpointW0 = &s1->getThickPoint(0);
+    const TThickQuadratic* startChunk = s1->getChunk(0);
+
+    bool overlapW0 = hasEndpointOverlap(vi, i, *endpointW0);
+
+    auto P0 = std::make_pair(startChunk->getThickP0().x, startChunk->getThickP0().y);
+    auto P1 = std::make_pair(startChunk->getThickP1().x, startChunk->getThickP1().y);
+    auto P2 = std::make_pair(startChunk->getThickP2().x, startChunk->getThickP2().y);
+
+    auto startLeft = extendQuadraticBezier(P0, P1, P2, AutocloseFactor, 0.25, true);
+    auto startCenter = extendQuadraticBezier(P0, P1, P2, AutocloseFactor, 0.0, true);
+    auto startRight = extendQuadraticBezier(P0, P1, P2, AutocloseFactor, -0.25, true);
+
+    // --- ENDPOINT W1 ---
+    TThickPoint* endpointW1 = &s1->getThickPoint(s1->getControlPointCount() - 1);
+    const TThickQuadratic* endChunk = s1->getChunk(s1->getChunkCount() - 1);
+    bool overlapW1 = hasEndpointOverlap(vi, i, *endpointW1);
+
+    P0 = std::make_pair(endChunk->getThickP0().x, endChunk->getThickP0().y);
+    P1 = std::make_pair(endChunk->getThickP1().x, endChunk->getThickP1().y);
+    P2 = std::make_pair(endChunk->getThickP2().x, endChunk->getThickP2().y);
+
+    auto endLeft = extendQuadraticBezier(P0, P1, P2, AutocloseFactor, 0.25, false);
+    auto endCenter = extendQuadraticBezier(P0, P1, P2, AutocloseFactor, 0.0, false);
+    auto endRight = extendQuadraticBezier(P0, P1, P2, AutocloseFactor, -0.25, false);
+
+    // --- CREATE EXTENSIONS ---
+    if (!overlapW0) {
+      endpointList.push_back(EndpointData{i, true, true });
+      const UINT epIndex = endpointList.size() - 1;
+      addExtensionStroke(vaux, extensionList, *endpointW0, startCenter, i, epIndex, true, lineExtensionColorstyle);
+      addExtensionStroke(vaux, extensionList, *endpointW0, startLeft, i, epIndex,true, lineExtensionColorstyle);
+      addExtensionStroke(vaux, extensionList, *endpointW0, startRight, i, epIndex, true, lineExtensionColorstyle);
+    }
+
+    if (!overlapW1) {
+      endpointList.push_back(EndpointData{ i, false, true });
+      const UINT epIndex = endpointList.size() - 1;
+      addExtensionStroke(vaux, extensionList, *endpointW1, endCenter, i, epIndex, false, lineExtensionColorstyle);
+      addExtensionStroke(vaux, extensionList, *endpointW1, endLeft, i, epIndex, false, lineExtensionColorstyle);
+      addExtensionStroke(vaux, extensionList, *endpointW1, endRight, i, epIndex, false, lineExtensionColorstyle);
+    }
+
+  }
+  // add initial line extensions - end *****************************************************************
+
+  // find intersections - begin *****************************************************************
+
+  std::vector <IntersectionTemp> intersectionList;
+
+  DEBUG_LOG("------------------------ vaux strokes:" << "\n");
+
+  DEBUG_LOG("vaux Index:strokeId, vi Index:strokeId, W, from x:y, to x:y\n");
+
+  UINT vauxStrokeCount = vaux.getStrokeCount();
+
+  DEBUG_LOG("endpointList\n");
+  DEBUG_LOG("viIndex, extendsW0, open\n");
+  for (int e = 0; e < endpointList.size(); e++) {
+    DEBUG_LOG(endpointList.at(e).viIndex << ", " << endpointList.at(e).extendsW0 << ", " << endpointList.at(e).open << "\n");
+  }
+
+  DEBUG_LOG("extensionList\n");
+  DEBUG_LOG("vauxIndex, viIndex, endpointIndex, extendsW0, availableToIntersect, intersected\n");
+  for (ExtensionData currExtension : extensionList) { // outer loop, the list of extensions
+    DEBUG_LOG(currExtension.vauxIndex << ", " << endpointList[currExtension.endpointIndex].viIndex << ", " << currExtension.endpointIndex << ", " << endpointList[currExtension.endpointIndex].extendsW0 << "\n");
+  }
+
+  for (UINT i = 0; i < vauxStrokeCount; i++) {
+    TStroke* s2 = vaux.getStroke(i);
+
+    DEBUG_LOG(i << ":" << s2->getId());
+
+    auto it = std::find_if(extensionList.begin(), extensionList.end(),
+      [&i](const ExtensionData& extensionData) {
+        return extensionData.vauxIndex == i;
+      });
+
+    // find the extensionData for extension, s1
+    if (it != extensionList.end()) {
+      uint ep = it->endpointIndex;
+      DEBUG_LOG(" ep:" << ep);
+
+      if (ep < endpointList.size()) {
+        const EndpointData& endpointRecord = endpointList[ep];
+
+        DEBUG_LOG(", " << endpointList[it->endpointIndex].viIndex << ":" << vi->getStroke(endpointList[it->endpointIndex].viIndex)->getId()
+          << ", " << (endpointRecord.extendsW0 ? "W0" : "W1"));
+      }
+      else {
+        DEBUG_LOG(", Invalid ep index: " << ep << ", endpointList.size() = " << endpointList.size());
+      }
+
+      TThickPoint fromPoint = vaux.getStroke(it->vauxIndex)->getThickPoint(0);
+      TThickPoint toPoint = vaux.getStroke(it->vauxIndex)->getThickPoint(1);
+      DEBUG_LOG(", from x:" << fromPoint.x << ", y:" << fromPoint.y);
+      DEBUG_LOG(", to x:" << toPoint.x << ", y:" << toPoint.y);
+      DEBUG_LOG("\n");
+    }
+  }
+
+  // *****************************************************************************************************************************************
+  if (true) {                 // BYPASS START
+  // *****************************************************************************************************************************************
+
+  DEBUG_LOG("------------------------ vi strokes:" << "\n");
+
+  UINT viStrokeCount = vi->getStrokeCount();
+
+  for (UINT i = 0; i < viStrokeCount; i++) {
+    TStroke* s2 = vi->getStroke(i);
+    TRectD s2BBox = s2->getCenterlineBBox();
+    TPointD s2W0 = s2->getThickPoint(0);
+    TPointD s2W1 = s2->getThickPoint(1);
+    DEBUG_LOG(i << ":" << s2->getId());
+    DEBUG_LOG(" from W0 x:" << s2W0.x << ", y:" << s2W0.y << " to W1 x:" << s2W1.x << ", y:" << s2W1.y << "\n");
+  }
+
+  TStroke* auxStroke;
+
+  std::vector <int> listOfExtensionsToDelete;
+
+  bool checkUsingBBox = true;
+  DEBUG_LOG("begin - Check extensions against regular lines. checkUsingBBox is:" << checkUsingBBox << "**********************************************************\n");
+
+  // check extensions against regular lines - begin
+  for (ExtensionData currExtension : extensionList) { // outer loop, the list of extensions
+    auxStroke = vaux.getStroke(currExtension.vauxIndex);
+
+    TRectD auxStrokeBBox = auxStroke->getCenterlineBBox();
+
+    for (UINT i = 0; i < viStrokeCount; i++) { // inner loop, go through all the regular strokes to look for overlap
+      TStroke* s2 = vi->getStroke(i);
+
+      DEBUG_LOG("    " << currExtension.vauxIndex << ":" << auxStroke->getId() << " to " << endpointList[currExtension.endpointIndex].viIndex << ":" << s2->getId() << ", extendsW0:" << ((endpointList[currExtension.endpointIndex].extendsW0) ? "true" : "false") << "\n");
+
+      std::vector<DoublePair> parIntersections;
+      if (intersect(auxStroke, s2, parIntersections, checkUsingBBox)) {
+        DEBUG_LOG("\t" << auxStroke->getId() << " -x- " << s2->getId());
+        DEBUG_LOG(", " << parIntersections.size() << " intersectionList\n");
+
+        // Iterate through the intersections. ******************************************************
+        for (int pi = 0; pi < parIntersections.size(); pi++) {
+
+          DEBUG_LOG("\t\t" << pi << " - W first:" << parIntersections.at(pi).first << ", second:" << parIntersections.at(pi).second);
+          DEBUG_LOG(", auxStroke (s1) x:" << auxStroke->getPoint(parIntersections.at(pi).first).x);
+          DEBUG_LOG(", y:" << auxStroke->getPoint(parIntersections.at(pi).first).y);
+          DEBUG_LOG(", (s2) x:" << s2->getPoint(parIntersections.at(pi).second).x);
+          DEBUG_LOG(", y:" << s2->getPoint(parIntersections.at(pi).second).y);
+          DEBUG_LOG("\n");
+
+          double s1W = parIntersections.at(pi).first;
+          double s2W = parIntersections.at(pi).second;
+
+          DEBUG_LOG("\t\tisAlmostZero(s1W):" << isAlmostZero(s1W, 1.5e-8));
+          DEBUG_LOG(", currExtension.extendsW0:" << endpointList[currExtension.endpointIndex].extendsW0);
+          DEBUG_LOG(", (currExtension.extendsW0 && isAlmostZero(s2W)):" << (endpointList[currExtension.endpointIndex].extendsW0 && isAlmostZero(s2W, 1.5e-8)));
+          DEBUG_LOG(", (!currExtension.extendsW0 && isAlmostZero(s2W - 1)):" << (!endpointList[currExtension.endpointIndex].extendsW0 && isAlmostZero(s2W - 1, 1.5e-8)) << "\n");
+
+          if (vi->getStroke(endpointList[currExtension.endpointIndex].viIndex)->getId() == s2->getId() && isAlmostZero(s1W, 1.5e-8) && ((endpointList[currExtension.endpointIndex].extendsW0 && isAlmostZero(s2W, 1.5e-8)) || (!endpointList[currExtension.endpointIndex].extendsW0 && isAlmostZero(s2W - 1, 1.5e-8)))) {
+            // this intersection is with my origin stroke at my origin point so ignore this intersection.
+            DEBUG_LOG("\t\tignored: " << s2->getId() << " is my origin.");
+            DEBUG_LOG(" auxStroke (s1) x:" << auxStroke->getPoint(0).x);
+            DEBUG_LOG(", y:" << auxStroke->getPoint(0).y);
+            DEBUG_LOG(", (s2) P0 x:" << s2->getPoint(0).x);
+            DEBUG_LOG(", y:" << s2->getPoint(0).y);
+            DEBUG_LOG(", (s2) P2 x:" << s2->getPoint(1).x);
+            DEBUG_LOG(", y:" << s2->getPoint(1).y);
+            DEBUG_LOG("\n");
+          }
+          else {
+            // Add the intersections to the intersection list
+            // calculate distance from s1 to intersection
+            double s1Originx = auxStroke->getPoint(0).x;
+            double s1Originy = auxStroke->getPoint(0).y;
+            double intersectionX = auxStroke->getPoint(parIntersections.at(pi).first).x;
+            double intersectionY = auxStroke->getPoint(parIntersections.at(pi).first).y;
+            double d = tdistance(TPointD(s1Originx, s1Originy), TPointD(intersectionX, intersectionY));
+
+            if (d > AutocloseFactor) {
+              DEBUG_LOG("\t\tignored: Gap close distance " << d << " from s1 origin " << auxStroke->getPoint(0).x << "," << auxStroke->getPoint(0).y << " to intersection exceeds maximum distance " << AutocloseFactor << ".\n");
+              continue;
+            }
+
+            IntersectionTemp anIntersection = {
+              currExtension.vauxIndex >= 0 ? static_cast<unsigned int>(currExtension.vauxIndex) : 0, // Avoids negative conversion, TomDoingArt...why is this an issue? Why casting to unsigned from signed?
+              parIntersections.at(pi).first,
+              endpointList[currExtension.endpointIndex].extendsW0,
+              i,
+              false,
+              d,
+              parIntersections.at(pi).second,
+              auxStroke->getPoint(parIntersections.at(pi).first).x,
+              auxStroke->getPoint(parIntersections.at(pi).first).y,
+              0
+            };
+
+            intersectionList.push_back(anIntersection);
+            DEBUG_LOG("\t" << "added: " << anIntersection.s1Index << ":" << auxStroke->getId() << " to " << anIntersection.s2Index << ":" << s2->getId() << " to the intersectionList\n");
+
+          }
+        }
+
+      } // end of: if (intersect(auxStroke, s2, parIntersections, checkUsingBBox))
+      else {
+        DEBUG_LOG("\t" << auxStroke->getId() << " --- " << s2->getId());
+        DEBUG_LOG(", auxStroke x:" << auxStroke->getPoint(0).x);
+        DEBUG_LOG(", y:" << auxStroke->getPoint(0).y);
+        DEBUG_LOG(", s2 P0 x:" << s2->getPoint(0).x);
+        DEBUG_LOG(", y:" << s2->getPoint(0).y);
+        DEBUG_LOG(", s2 P2 x:" << s2->getPoint(1).x);
+        DEBUG_LOG(", y:" << s2->getPoint(1).y);
+        DEBUG_LOG("\n");
+      }
+    } // inner loop of vi
+  } // outer loop of extensionList
+  // check extensions against regular lines - end
+
+  DEBUG_LOG("end - Check extensions against regular lines. ------------------------------------------------------------" << "\n");
+
+  DEBUG_LOG("------------------------ vaux strokes:" << "\n");
+
+  DEBUG_LOG("vaux Index:strokeId, vi Index:strokeId, W, from x:y, to x:y\n");
+
+  vauxStrokeCount = vaux.getStrokeCount();
+
+  for (UINT i = 0; i < vauxStrokeCount; i++) {
+    TStroke* s2 = vaux.getStroke(i);
+
+    DEBUG_LOG(i << ":" << s2->getId());
+
+    auto it = std::find_if(extensionList.begin(), extensionList.end(),
+      [&i](const ExtensionData& extensionData) {
+        return extensionData.vauxIndex == i;
+      });
+
+    // find the extensionData for extension, s1
+    if (it != extensionList.end()) {
+      DEBUG_LOG(", " << endpointList[it->endpointIndex].viIndex << ":" << vi->getStroke(endpointList[it->endpointIndex].viIndex)->getId() << ", " << ((endpointList[it->endpointIndex].extendsW0) ? "W0" : "W1"));
+    }
+
+    TThickPoint fromPoint = vaux.getStroke(it->vauxIndex)->getThickPoint(0);
+    TThickPoint toPoint = vaux.getStroke(it->vauxIndex)->getThickPoint(1);
+    DEBUG_LOG(", from x:" << fromPoint.x << ", y:" << fromPoint.y);
+    DEBUG_LOG(", to x:" << toPoint.x << ", y:" << toPoint.y);
+    DEBUG_LOG("\n");
+  }
+
+  DEBUG_LOG("------------------------ vi strokes:" << "\n");
+
+  viStrokeCount = vi->getStrokeCount();
+
+  for (UINT i = 0; i < viStrokeCount; i++) {
+    TStroke* s2 = vi->getStroke(i);
+    TRectD s2BBox = s2->getCenterlineBBox();
+    TPointD s2W0 = s2->getThickPoint(0);
+    TPointD s2W1 = s2->getThickPoint(1);
+    DEBUG_LOG(i << ":" << s2->getId());
+    DEBUG_LOG(" from W0 x:" << s2W0.x << ", y:" << s2W0.y << " to W1 x:" << s2W1.x << ", y:" << s2W1.y << "\n");
+  }
+
+  // **********************************************************************************
+  // Repeat the loops, this time for the extension to extension intersections         *
+  // **********************************************************************************
+
+//  bool checkUsingBBox = true;
+  DEBUG_LOG("begin - Check extensions against other extensions. checkUsingBBox is : " << checkUsingBBox << "**********************************************************\n");
+  // check extensions against other extensions - begin
+  for (ExtensionData currExtension : extensionList) { // outer loop, the list of extensions
+    auxStroke = vaux.getStroke(currExtension.vauxIndex);
+
+    for (UINT i = 0; i < vauxStrokeCount; i++) { // inner loop of lineExtensions
+      TStroke* s2 = vaux.getStroke(i);
+
+      if (auxStroke->getId() == s2->getId()) {
+        DEBUG_LOG("\t" << auxStroke->getId() << " -=- " << s2->getId() << "\n");
+        continue; // if s2 is myself, ignore
+      }
+
+      auto it = std::find_if(extensionList.begin(), extensionList.end(),
+        [&i](const ExtensionData& extensionData) {
+          return extensionData.vauxIndex == i;
+        });
+
+      UINT currVauxIndex = currExtension.vauxIndex;
+
+      auto itS2 = std::find_if(extensionList.begin(), extensionList.end(),
+        [&currVauxIndex](const ExtensionData& extensionData) {
+          return extensionData.vauxIndex == currVauxIndex;
+        });
+
+      if (it != extensionList.end()) {
+        if (it->endpointIndex == itS2->endpointIndex) {
+          DEBUG_LOG("\t" << auxStroke->getId() << " -.- " << s2->getId());
+          DEBUG_LOG(" ignored: An extension from the same origin as me.\n");
+          continue;
+        }
+      }
+
+      // do the strokes intersect?
+      //auxStroke->isSelfLoop(); // check if this stroke is self loop
+      std::vector<DoublePair> parIntersections;
+      if (intersect(auxStroke, s2, parIntersections, checkUsingBBox)) {
+        DEBUG_LOG("\t" << auxStroke->getId() << " -x- " << s2->getId());
+        DEBUG_LOG(", " << parIntersections.size() << " intersectionList\n");
+
+        for (int pi = 0; pi < parIntersections.size(); pi++) {
+          DEBUG_LOG("\t  " << pi << " - s1W: " << parIntersections.at(pi).first << ", s2W: " << parIntersections.at(pi).second);
+          DEBUG_LOG(", s1 x:" << auxStroke->getPoint(parIntersections.at(pi).first).x);
+          DEBUG_LOG(", y:" << auxStroke->getPoint(parIntersections.at(pi).first).y);
+          DEBUG_LOG(", s2 x:" << s2->getPoint(parIntersections.at(pi).second).x);
+          DEBUG_LOG(", y:" << s2->getPoint(parIntersections.at(pi).second).y);
+          DEBUG_LOG("\n");
+
+          auto it = std::find_if(extensionList.begin(), extensionList.end(),
+            [&i](const ExtensionData& extensionData) {
+              return extensionData.vauxIndex == i;
+            });
+
+          if (it != extensionList.end()) {
+            if (auxStroke->getId() > s2->getId() || (auxStroke->getId() == s2->getId() && (endpointList[it->endpointIndex].extendsW0) == 0)) {
+              DEBUG_LOG("\tignored: A duplicate intersection in the reverse direction.\n");
+              continue;
+            }
+          }
+
+          // calculate distance between s1 origin and s2 origin
+          double originS1x = auxStroke->getPoint(0).x;
+          double originS1y = auxStroke->getPoint(0).y;
+          double originS2x = s2->getPoint(0).x;
+          double originS2y = s2->getPoint(0).y;
+          double d = tdistance(TPointD(originS1x, originS1y), TPointD(originS2x, originS2y));
+
+          if (d > AutocloseFactor) {
+            DEBUG_LOG("\tignored: Gap:" << d << " > autoCloseFactor:" << AutocloseFactor << " from s1 origin " << originS1x << "," << originS1y << " to s2 origin " << originS2x << "," << originS2y << ".\n");
+            continue;
+          }
+
+          IntersectionTemp anIntersection = {
+              currExtension.vauxIndex >= 0 ? static_cast<unsigned int>(currExtension.vauxIndex) : 0, // Avoids negative conversion
+              parIntersections.at(pi).first,
+              endpointList[currExtension.endpointIndex].extendsW0,
+              i,
+              true,
+              d,
+              parIntersections.at(pi).second,
+              auxStroke->getPoint(parIntersections.at(pi).first).x,
+              auxStroke->getPoint(parIntersections.at(pi).first).y,
+              0
+          };
+
+          intersectionList.push_back(anIntersection);
+          DEBUG_LOG("\t" << "added: " << anIntersection.s1Index << ":" << auxStroke->getId() << " to " << anIntersection.s2Index << ":" << s2->getId() << " to the intersectionList\n");
+        }
+      }
+      else {
+        DEBUG_LOG("\t" << auxStroke->getId() << " --- " << s2->getId() << "\n");
+      }
+    } // inner loop of extensions
+  } // outer loop, the list of extensions
+  // check extensions against other extensions - end
+  DEBUG_LOG("end - Check extensions against other extensions. ---------------------------------------------------------------\n");
+
+  DEBUG_LOG("\nIntersection List original:" << "\n");
+  for (IntersectionTemp currIntersection : intersectionList) {
+    DEBUG_LOG(currIntersection.s1Index << ":" << vaux.getStroke(currIntersection.s1Index)->getId() << " to ");
+    DEBUG_LOG(currIntersection.s2Index << ":");
+    if (currIntersection.s2IsExtension) {
+      DEBUG_LOG(vaux.getStroke(currIntersection.s2Index)->getId());
+    }
+    else {
+      DEBUG_LOG(vi->getStroke(currIntersection.s2Index)->getId());
+    }
+    DEBUG_LOG(" isExt:" << currIntersection.s2IsExtension);
+    DEBUG_LOG(", distance:" << currIntersection.distance);
+    DEBUG_LOG(", s1W:" << currIntersection.s1W);
+    DEBUG_LOG(", s2W:" << currIntersection.s2W << " x:" << currIntersection.x << " y:" << currIntersection.y);
+    DEBUG_LOG(" survives:" << currIntersection.survives << "\n");
+  }
+    // find intersections - end **********************************************************************
+
+  // Take action on intersections - begin **********************************************************  
+  //DEBUG_LOG("\nSort the list of intersections ---------------------------------------------------------------\n");
+  //// Sort the list of intersections
+  //std::sort(intersectionList.begin(), intersectionList.end(),
+  //  [](const IntersectionTemp& a, const IntersectionTemp& b) {
+  //    return (a.distance < b.distance);
+  //  });
+
+  //DEBUG_LOG("\nIntersection List sorted:" << "\n");
+  //for (IntersectionTemp currIntersection : intersectionList) {
+  //  DEBUG_LOG(currIntersection.s1Index << ":" << vaux.getStroke(currIntersection.s1Index)->getId() << " to ");
+  //  DEBUG_LOG(currIntersection.s2Index << ":");
+  //  if (currIntersection.s2IsExtension) {
+  //    DEBUG_LOG(vaux.getStroke(currIntersection.s2Index)->getId());
+  //  }
+  //  else {
+  //    DEBUG_LOG(vi->getStroke(currIntersection.s2Index)->getId());
+  //  }
+  //  DEBUG_LOG(" isExt:" << currIntersection.s2IsExtension);
+  //  DEBUG_LOG(", distance:" << currIntersection.distance);
+  //  DEBUG_LOG(", s1W:" << currIntersection.s1W);
+  //  DEBUG_LOG(", s2W:" << currIntersection.s2W << " x:" << currIntersection.x << " y:" << currIntersection.y);
+  //  DEBUG_LOG(" survives:" << currIntersection.survives << "\n");
+  //}
+
+  determineSurvivingIntersections(intersectionList, endpointList, extensionList);
+
+  // Loop through the surviving intersections and create updated extension lines for display.
+
+  for (IntersectionTemp currIntersection : intersectionList) { // outer loop, the list of intersections
+
+    if (currIntersection.survives == 1) {
+
+      UINT s1Index;
+      UINT s2Index;
+
+      s1Index = currIntersection.s1Index;
+      s2Index = currIntersection.s2Index;
+
+      auxStroke = vaux.getStroke(currIntersection.s1Index);
+
+      if (currIntersection.s2IsExtension) { // ******************* extension intersects extension **********************
+
+          TStroke* s2 = vaux.getStroke(currIntersection.s2Index);
+
+          // Set P2 equal to the start endpoint P0 of s2. ********************
+
+          const TThickQuadratic* s1StartChunk = auxStroke->getChunk(0);
+          const TThickQuadratic* s2StartChunk = s2->getChunk(0);
+
+          TThickPoint s1P0ThickPoint = s1StartChunk->getThickP0();
+          TThickPoint s2P0ThickPoint = s2StartChunk->getThickP0();
+
+          // add the new stroke.
+
+          TThickPoint* startPoint = &s1P0ThickPoint;
+          TThickPoint* endPoint = &s2P0ThickPoint;
+
+          // add these points to vaux
+          std::vector<TThickPoint> points(3);
+
+          TThickPoint p0;
+          TThickPoint p2;
+
+          p0 = *startPoint;
+          p2 = *endPoint;
+
+          points[0] = p0;
+          points[1] = 0.5 * (p0 + p2);
+          points[2] = p2;
+
+          points[0].thick = points[1].thick = points[2].thick = 0.0;
+          TStroke* auxStroke = new TStroke(points);
+          auxStroke->setStyle(2);
+          int addedAt = vaux.addStroke(auxStroke);
+
+      }
+      else { // ******************* extension intersects line **********************
+
+        const TThickQuadratic* s1StartChunk = auxStroke->getChunk(0);
+        TThickPoint s1P0ThickPoint = s1StartChunk->getThickP0();
+        TThickPoint* startPoint = &s1P0ThickPoint;
+        TThickPoint* endPoint = new TThickPoint(currIntersection.x, currIntersection.y);
+
+        std::vector<TThickPoint> points(3);
+
+        TThickPoint p0;
+        TThickPoint p2;
+
+        p0 = *startPoint;
+        p2 = *endPoint;
+
+        points[0] = p0;
+        points[1] = 0.5 * (p0 + p2);
+        points[2] = p2;
+        
+        points[0].thick = points[1].thick = points[2].thick = 0.0;
+        TStroke* auxStroke = new TStroke(points);
+        auxStroke->setStyle(2);
+        int addedAt = vaux.addStroke(auxStroke);
+      }
+    }
+  }
+
+  // Take action on intersections - end **********************************************************  
+
+  // ===================================================================================================================
+  // loop through surviving intersections and populate startPoints and endPoints vectors for candidate gap close lines.
+  // Return using points of existing strokes to be compatible with the current proximity gap close logic.
+  // ===================================================================================================================
+
+  for (IntersectionTemp currIntersection : intersectionList) { // outer loop, the list of intersections
+
+    if (currIntersection.survives == 1){
+      auto it = std::find_if(extensionList.begin(), extensionList.end(),
+        [&currIntersection, &endpointList](const ExtensionData& extensionData) {
+          return extensionData.vauxIndex == currIntersection.s1Index && endpointList[extensionData.endpointIndex].extendsW0 == currIntersection.s1ExtendsW0;
+        });
+
+      // find the extensionData for the first extension, s1,
+      if (it != extensionList.end()) {
+        int ep = it->endpointIndex;
+        if (ep < endpointList.size()) {
+          const EndpointData& endpointRecord = endpointList[ep];
+          DEBUG_LOG(", " << endpointList[it->endpointIndex].viIndex << ":" << vi->getStroke(endpointList[it->endpointIndex].viIndex)->getId()
+            << ", " << (endpointRecord.extendsW0 ? "W0" : "W1"));
+          startPoints.push_back(pair<int, double>(endpointList[it->endpointIndex].viIndex, endpointRecord.extendsW0 ? 0.0 : 1.0)); // the start stroke index, and W value of 0.0 or 1.0
+        }
+        else {
+          DEBUG_LOG(", Invalid ep index: " << ep << ", endpointList.size() = " << endpointList.size());
+        }
+      }
+
+      if (currIntersection.s2IsExtension) { //intersects an extension
+        // find the extensionData for the second extension, s2
+        auto it = std::find_if(extensionList.begin(), extensionList.end(),
+          [&currIntersection](const ExtensionData& extensionData) {
+            return extensionData.vauxIndex == currIntersection.s2Index;
+          });
+
+        if (it != extensionList.end()) {
+          int ep = it->endpointIndex;
+          if (ep < endpointList.size()) {
+            const EndpointData& endpointRecord = endpointList[ep];
+            endPoints.push_back(pair<int, double>(endpointList[it->endpointIndex].viIndex, endpointRecord.extendsW0 ? 0.0 : 1.0)); // the end stroke and W value of 0.0 or 1.0
+          }
+        }
+      }
+      else { //intersects a line
+        endPoints.push_back(pair<int, double>(currIntersection.s2Index, currIntersection.s2W)); // the end stroke and W value of the intersection
+      }
+    }
+  }
+
+  // ****************************************************************************************************************************************************************
+} // end BYPASS
+  // ****************************************************************************************************************************************************************
+
+// Populate the lineExtensions vector with line extensions for endpoints which are still open
+  vauxStrokeCount = vaux.getStrokeCount();
+  
+  DEBUG_LOG("------------------------ vaux strokes, vaux stroke count:" << vauxStrokeCount << "\n");
+  DEBUG_LOG("vaux Index:strokeId, vi Index:strokeId, W, from x:y, to x:y\n");
+
+  for (UINT i = 0; i < vauxStrokeCount; i++) {
+    TStroke* s2 = vaux.getStroke(i);
+
+    DEBUG_LOG(i << ":" << s2->getId());
+
+    auto it = std::find_if(extensionList.begin(), extensionList.end(),
+      [&i](const ExtensionData& extensionData) {
+        return extensionData.vauxIndex == i;
+      });
+
+    // find the extensionData for extension, s1
+    if (it != extensionList.end()) {
+      int ep = it->endpointIndex;
+        if (ep < endpointList.size()) {
+          const EndpointData& endpointRecord = endpointList[ep];
+          if (endpointRecord.open) {
+            DEBUG_LOG(", " << endpointList[it->endpointIndex].viIndex << ":" << vi->getStroke(endpointList[it->endpointIndex].viIndex)->getId() << ", " << ((endpointRecord.extendsW0) ? "W0" : "W1"));
+
+            TPointD fromPoint = vaux.getStroke(it->vauxIndex)->getPoint(0);
+            TPointD toPoint = vaux.getStroke(it->vauxIndex)->getPoint(1);
+
+            DEBUG_LOG(", from " << fromPoint.x << ":" << fromPoint.y);
+            DEBUG_LOG(", to " << toPoint.x << ":" << toPoint.y);
+            DEBUG_LOG("\n");
+
+            lineExtensions.push_back(pair<pair<double, double>, pair<double, double>>(make_pair(fromPoint.x, fromPoint.y), make_pair(toPoint.x, toPoint.y)));
+          }
+          else {
+            DEBUG_LOG(", endpoint is not open: " << ep << " no extensions will be created for it.\n");
+          }
+        }
+        else {
+          DEBUG_LOG(", Invalid ep index: " << ep << ", endpointList.size() = " << endpointList.size());
+        }
+    }
+  }
+
+  DEBUG_LOG("===================== getLineExtensionClosingPoints - end ==================================================================\n");
 }
