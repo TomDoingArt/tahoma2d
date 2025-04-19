@@ -73,6 +73,7 @@
 bool debug_mode = true;  // Set to false to disable debug output
 #define DEBUG_LOG(x) if (debug_mode) std::cout << x // << std::endl
 
+double currentCloseFactorMin = -1.0; // Use this to track the current close distance minimum value, to know when it changes.
 double currentCloseFactor = -1.0; // Use this to track the current close distance value, to know when it changes.
 
 
@@ -841,8 +842,8 @@ static void drawAutocloses(TVectorImage *vi, TVectorRenderData &rd) {
 /*! Draw lines for the line extension auto close method.
 */
 static void drawLineExtensionAutocloses(TVectorImage* vi, TVectorRenderData& rd) {
-  if (currentCloseFactor == AutocloseFactor) {
-    DEBUG_LOG("NO CHANGE in drawLineExtensionAutocloses, autoCloseFactor:" << AutocloseFactor << " is the same as:" << currentCloseFactor << "\n");
+  if (currentCloseFactorMin == AutocloseFactorMin && currentCloseFactor == AutocloseFactor) {
+    DEBUG_LOG("NO CHANGE in drawLineExtensionAutocloses() autoCloseFactorMin and autoCloseFactor:" << AutocloseFactorMin << " is the same as:" << currentCloseFactorMin << " and " << AutocloseFactor << " is the same as:" << currentCloseFactor << "\n");
     debug_mode = false;
   }
   else {
@@ -850,6 +851,7 @@ static void drawLineExtensionAutocloses(TVectorImage* vi, TVectorRenderData& rd)
   }
   static TPalette* plt = 0;
   const int ROUNDINGFACTOR = 4;
+  currentCloseFactorMin = AutocloseFactorMin;
   currentCloseFactor = AutocloseFactor;
   DEBUG_LOG("\n\n===================== stagevisitor::drawLineExtensionAutocloses - begin ==================================================================\n\n");
   DEBUG_LOG("drawLineExtensionAutocloses, autoCloseFactor:" << AutocloseFactor << "\n");

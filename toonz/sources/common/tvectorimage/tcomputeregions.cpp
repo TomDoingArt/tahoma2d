@@ -3922,6 +3922,7 @@ struct EndpointData {
 struct ExtensionData {
   int vauxIndex;
   UINT endpointIndex;
+  bool isCenter;
 };
 
 struct IntersectionTemp {
@@ -4016,6 +4017,7 @@ void determineSurvivingIntersections(std::vector<IntersectionTemp>&intersectionL
 
 } // end of determineSurvivingIntersections()
 
+TEnv::DoubleVar AutocloseFactorMin("InknpaintAutocloseFactorMin", 1.15);
 TEnv::DoubleVar AutocloseFactor("InknpaintAutocloseFactor", 4.0);
 
 //-------------------------------------------------------------------------------------------------------
@@ -4041,6 +4043,7 @@ void addExtensionStroke(
   UINT originStrokeIndex,
   UINT endpointIndex,
   bool isStart,
+  bool isCenter,
   int style
 ) {
 
@@ -4058,6 +4061,7 @@ void addExtensionStroke(
   extensionList.push_back(ExtensionData{
     vaux.addStroke(new TStroke(stroke)), // make clear this stroke object is now vaux's responsibility
     endpointIndex,
+    isCenter
     });
 }
 
@@ -4078,6 +4082,7 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
 
   const int ROUNDINGFACTOR = 4;
   DEBUG_LOG("\n\n===================== getLineExtensionClosingPoints - begin ==================================================================\n\n");
+  DEBUG_LOG("getLineExtensionClosingPoints, autoCloseFactorMin:" << AutocloseFactorMin << "\n");
   DEBUG_LOG("getLineExtensionClosingPoints, autoCloseFactor:" << AutocloseFactor << "\n");
 
   TVectorImage vaux; // the gap close candidate lines
@@ -4137,17 +4142,17 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
     if (!overlapW0) {
       endpointList.push_back(EndpointData{i, true, true });
       const UINT epIndex = endpointList.size() - 1;
-      addExtensionStroke(vaux, extensionList, *endpointW0, startCenter, i, epIndex, true, lineExtensionColorstyle);
-      addExtensionStroke(vaux, extensionList, *endpointW0, startLeft, i, epIndex,true, lineExtensionColorstyle);
-      addExtensionStroke(vaux, extensionList, *endpointW0, startRight, i, epIndex, true, lineExtensionColorstyle);
+      addExtensionStroke(vaux, extensionList, *endpointW0, startCenter, i, epIndex, true, true, lineExtensionColorstyle);
+      addExtensionStroke(vaux, extensionList, *endpointW0, startLeft, i, epIndex,true, false, lineExtensionColorstyle);
+      addExtensionStroke(vaux, extensionList, *endpointW0, startRight, i, epIndex, true, false, lineExtensionColorstyle);
     }
 
     if (!overlapW1) {
       endpointList.push_back(EndpointData{ i, false, true });
       const UINT epIndex = endpointList.size() - 1;
-      addExtensionStroke(vaux, extensionList, *endpointW1, endCenter, i, epIndex, false, lineExtensionColorstyle);
-      addExtensionStroke(vaux, extensionList, *endpointW1, endLeft, i, epIndex, false, lineExtensionColorstyle);
-      addExtensionStroke(vaux, extensionList, *endpointW1, endRight, i, epIndex, false, lineExtensionColorstyle);
+      addExtensionStroke(vaux, extensionList, *endpointW1, endCenter, i, epIndex, false, true, lineExtensionColorstyle);
+      addExtensionStroke(vaux, extensionList, *endpointW1, endLeft, i, epIndex, false, false, lineExtensionColorstyle);
+      addExtensionStroke(vaux, extensionList, *endpointW1, endRight, i, epIndex, false, false, lineExtensionColorstyle);
     }
 
   }
@@ -4234,94 +4239,103 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
 
   // check extensions against regular lines - begin
   for (ExtensionData currExtension : extensionList) { // outer loop, the list of extensions
-    auxStroke = vaux.getStroke(currExtension.vauxIndex);
 
-    TRectD auxStrokeBBox = auxStroke->getCenterlineBBox();
+    if (currExtension.isCenter){  // only want to check center extensions, ignore left and right
 
-    for (UINT i = 0; i < viStrokeCount; i++) { // inner loop, go through all the regular strokes to look for overlap
-      TStroke* s2 = vi->getStroke(i);
+      auxStroke = vaux.getStroke(currExtension.vauxIndex);
 
-      DEBUG_LOG("    " << currExtension.vauxIndex << ":" << auxStroke->getId() << " to " << endpointList[currExtension.endpointIndex].viIndex << ":" << s2->getId() << ", extendsW0:" << ((endpointList[currExtension.endpointIndex].extendsW0) ? "true" : "false") << "\n");
+      TRectD auxStrokeBBox = auxStroke->getCenterlineBBox();
 
-      std::vector<DoublePair> parIntersections;
-      if (intersect(auxStroke, s2, parIntersections, checkUsingBBox)) {
-        DEBUG_LOG("\t" << auxStroke->getId() << " -x- " << s2->getId());
-        DEBUG_LOG(", " << parIntersections.size() << " intersectionList\n");
+      for (UINT i = 0; i < viStrokeCount; i++) { // inner loop, go through all the regular strokes to look for overlap
+        TStroke* s2 = vi->getStroke(i);
 
-        // Iterate through the intersections. ******************************************************
-        for (int pi = 0; pi < parIntersections.size(); pi++) {
+        DEBUG_LOG("    " << currExtension.vauxIndex << ":" << auxStroke->getId() << " to " << endpointList[currExtension.endpointIndex].viIndex << ":" << s2->getId() << ", extendsW0:" << ((endpointList[currExtension.endpointIndex].extendsW0) ? "true" : "false") << ", isCenter:" << ((currExtension.isCenter) ? "true" : "false") << "\n");
 
-          DEBUG_LOG("\t\t" << pi << " - W first:" << parIntersections.at(pi).first << ", second:" << parIntersections.at(pi).second);
-          DEBUG_LOG(", auxStroke (s1) x:" << auxStroke->getPoint(parIntersections.at(pi).first).x);
-          DEBUG_LOG(", y:" << auxStroke->getPoint(parIntersections.at(pi).first).y);
-          DEBUG_LOG(", (s2) x:" << s2->getPoint(parIntersections.at(pi).second).x);
-          DEBUG_LOG(", y:" << s2->getPoint(parIntersections.at(pi).second).y);
-          DEBUG_LOG("\n");
+        std::vector<DoublePair> parIntersections;
+        if (intersect(auxStroke, s2, parIntersections, checkUsingBBox)) {
+          DEBUG_LOG("\t" << auxStroke->getId() << " -x- " << s2->getId());
+          DEBUG_LOG(", " << parIntersections.size() << " intersectionList\n");
 
-          double s1W = parIntersections.at(pi).first;
-          double s2W = parIntersections.at(pi).second;
+          // Iterate through the intersections. ******************************************************
+          for (int pi = 0; pi < parIntersections.size(); pi++) {
 
-          DEBUG_LOG("\t\tisAlmostZero(s1W):" << isAlmostZero(s1W, 1.5e-8));
-          DEBUG_LOG(", currExtension.extendsW0:" << endpointList[currExtension.endpointIndex].extendsW0);
-          DEBUG_LOG(", (currExtension.extendsW0 && isAlmostZero(s2W)):" << (endpointList[currExtension.endpointIndex].extendsW0 && isAlmostZero(s2W, 1.5e-8)));
-          DEBUG_LOG(", (!currExtension.extendsW0 && isAlmostZero(s2W - 1)):" << (!endpointList[currExtension.endpointIndex].extendsW0 && isAlmostZero(s2W - 1, 1.5e-8)) << "\n");
-
-          if (vi->getStroke(endpointList[currExtension.endpointIndex].viIndex)->getId() == s2->getId() && isAlmostZero(s1W, 1.5e-8) && ((endpointList[currExtension.endpointIndex].extendsW0 && isAlmostZero(s2W, 1.5e-8)) || (!endpointList[currExtension.endpointIndex].extendsW0 && isAlmostZero(s2W - 1, 1.5e-8)))) {
-            // this intersection is with my origin stroke at my origin point so ignore this intersection.
-            DEBUG_LOG("\t\tignored: " << s2->getId() << " is my origin.");
-            DEBUG_LOG(" auxStroke (s1) x:" << auxStroke->getPoint(0).x);
-            DEBUG_LOG(", y:" << auxStroke->getPoint(0).y);
-            DEBUG_LOG(", (s2) P0 x:" << s2->getPoint(0).x);
-            DEBUG_LOG(", y:" << s2->getPoint(0).y);
-            DEBUG_LOG(", (s2) P2 x:" << s2->getPoint(1).x);
-            DEBUG_LOG(", y:" << s2->getPoint(1).y);
+            DEBUG_LOG("\t\t" << pi << " - W first:" << parIntersections.at(pi).first << ", second:" << parIntersections.at(pi).second);
+            DEBUG_LOG(", auxStroke (s1) x:" << auxStroke->getPoint(parIntersections.at(pi).first).x);
+            DEBUG_LOG(", y:" << auxStroke->getPoint(parIntersections.at(pi).first).y);
+            DEBUG_LOG(", (s2) x:" << s2->getPoint(parIntersections.at(pi).second).x);
+            DEBUG_LOG(", y:" << s2->getPoint(parIntersections.at(pi).second).y);
             DEBUG_LOG("\n");
-          }
-          else {
-            // Add the intersections to the intersection list
-            // calculate distance from s1 to intersection
-            double s1Originx = auxStroke->getPoint(0).x;
-            double s1Originy = auxStroke->getPoint(0).y;
-            double intersectionX = auxStroke->getPoint(parIntersections.at(pi).first).x;
-            double intersectionY = auxStroke->getPoint(parIntersections.at(pi).first).y;
-            double d = tdistance(TPointD(s1Originx, s1Originy), TPointD(intersectionX, intersectionY));
 
-            if (d > AutocloseFactor) {
-              DEBUG_LOG("\t\tignored: Gap close distance " << d << " from s1 origin " << auxStroke->getPoint(0).x << "," << auxStroke->getPoint(0).y << " to intersection exceeds maximum distance " << AutocloseFactor << ".\n");
-              continue;
+            double s1W = parIntersections.at(pi).first;
+            double s2W = parIntersections.at(pi).second;
+
+            DEBUG_LOG("\t\tisAlmostZero(s1W):" << isAlmostZero(s1W, 1.5e-8));
+            DEBUG_LOG(", currExtension.extendsW0:" << endpointList[currExtension.endpointIndex].extendsW0);
+            DEBUG_LOG(", (currExtension.extendsW0 && isAlmostZero(s2W)):" << (endpointList[currExtension.endpointIndex].extendsW0 && isAlmostZero(s2W, 1.5e-8)));
+            DEBUG_LOG(", (!currExtension.extendsW0 && isAlmostZero(s2W - 1)):" << (!endpointList[currExtension.endpointIndex].extendsW0 && isAlmostZero(s2W - 1, 1.5e-8)) << "\n");
+
+            if (vi->getStroke(endpointList[currExtension.endpointIndex].viIndex)->getId() == s2->getId() && isAlmostZero(s1W, 1.5e-8) && ((endpointList[currExtension.endpointIndex].extendsW0 && isAlmostZero(s2W, 1.5e-8)) || (!endpointList[currExtension.endpointIndex].extendsW0 && isAlmostZero(s2W - 1, 1.5e-8)))) {
+              // this intersection is with my origin stroke at my origin point so ignore this intersection.
+              DEBUG_LOG("\t\tignored: " << s2->getId() << " is my origin.");
+              DEBUG_LOG(" auxStroke (s1) x:" << auxStroke->getPoint(0).x);
+              DEBUG_LOG(", y:" << auxStroke->getPoint(0).y);
+              DEBUG_LOG(", (s2) P0 x:" << s2->getPoint(0).x);
+              DEBUG_LOG(", y:" << s2->getPoint(0).y);
+              DEBUG_LOG(", (s2) P2 x:" << s2->getPoint(1).x);
+              DEBUG_LOG(", y:" << s2->getPoint(1).y);
+              DEBUG_LOG("\n");
             }
+            else {
+              // Add the intersections to the intersection list
+              // calculate distance from s1 to intersection
+              double s1Originx = auxStroke->getPoint(0).x;
+              double s1Originy = auxStroke->getPoint(0).y;
+              double intersectionX = auxStroke->getPoint(parIntersections.at(pi).first).x;
+              double intersectionY = auxStroke->getPoint(parIntersections.at(pi).first).y;
+              double d = tdistance(TPointD(s1Originx, s1Originy), TPointD(intersectionX, intersectionY));
 
-            IntersectionTemp anIntersection = {
-              currExtension.vauxIndex >= 0 ? static_cast<unsigned int>(currExtension.vauxIndex) : 0, // Avoids negative conversion, TomDoingArt...why is this an issue? Why casting to unsigned from signed?
-              parIntersections.at(pi).first,
-              endpointList[currExtension.endpointIndex].extendsW0,
-              i,
-              false,
-              d,
-              parIntersections.at(pi).second,
-              auxStroke->getPoint(parIntersections.at(pi).first).x,
-              auxStroke->getPoint(parIntersections.at(pi).first).y,
-              0
-            };
+              if (d < AutocloseFactorMin) {
+                DEBUG_LOG("\t\tignored: Gap close distance " << d << " from s1 origin " << auxStroke->getPoint(0).x << "," << auxStroke->getPoint(0).y << " to intersection is less than the minimum distance " << AutocloseFactorMin << ".\n");
+                continue;
+              }
 
-            intersectionList.push_back(anIntersection);
-            DEBUG_LOG("\t" << "added: " << anIntersection.s1Index << ":" << auxStroke->getId() << " to " << anIntersection.s2Index << ":" << s2->getId() << " to the intersectionList\n");
+              if (d > AutocloseFactor) {
+                DEBUG_LOG("\t\tignored: Gap close distance " << d << " from s1 origin " << auxStroke->getPoint(0).x << "," << auxStroke->getPoint(0).y << " to intersection exceeds maximum distance " << AutocloseFactor << ".\n");
+                continue;
+              }
 
+              IntersectionTemp anIntersection = {
+                currExtension.vauxIndex >= 0 ? static_cast<unsigned int>(currExtension.vauxIndex) : 0, // Avoids negative conversion, TomDoingArt...why is this an issue? Why casting to unsigned from signed?
+                parIntersections.at(pi).first,
+                endpointList[currExtension.endpointIndex].extendsW0,
+                i,
+                false,
+                d,
+                parIntersections.at(pi).second,
+                auxStroke->getPoint(parIntersections.at(pi).first).x,
+                auxStroke->getPoint(parIntersections.at(pi).first).y,
+                0
+              };
+
+              intersectionList.push_back(anIntersection);
+              DEBUG_LOG("\t" << "added: " << anIntersection.s1Index << ":" << auxStroke->getId() << " to " << anIntersection.s2Index << ":" << s2->getId() << " to the intersectionList\n");
+
+            }
           }
-        }
 
-      } // end of: if (intersect(auxStroke, s2, parIntersections, checkUsingBBox))
-      else {
-        DEBUG_LOG("\t" << auxStroke->getId() << " --- " << s2->getId());
-        DEBUG_LOG(", auxStroke x:" << auxStroke->getPoint(0).x);
-        DEBUG_LOG(", y:" << auxStroke->getPoint(0).y);
-        DEBUG_LOG(", s2 P0 x:" << s2->getPoint(0).x);
-        DEBUG_LOG(", y:" << s2->getPoint(0).y);
-        DEBUG_LOG(", s2 P2 x:" << s2->getPoint(1).x);
-        DEBUG_LOG(", y:" << s2->getPoint(1).y);
-        DEBUG_LOG("\n");
-      }
-    } // inner loop of vi
+        } // end of: if (intersect(auxStroke, s2, parIntersections, checkUsingBBox))
+        else {
+          DEBUG_LOG("\t" << auxStroke->getId() << " --- " << s2->getId());
+          DEBUG_LOG(", auxStroke x:" << auxStroke->getPoint(0).x);
+          DEBUG_LOG(", y:" << auxStroke->getPoint(0).y);
+          DEBUG_LOG(", s2 P0 x:" << s2->getPoint(0).x);
+          DEBUG_LOG(", y:" << s2->getPoint(0).y);
+          DEBUG_LOG(", s2 P2 x:" << s2->getPoint(1).x);
+          DEBUG_LOG(", y:" << s2->getPoint(1).y);
+          DEBUG_LOG("\n");
+        }
+      } // inner loop of vi
+    } // if (currExtension.isCenter - end
   } // outer loop of extensionList
   // check extensions against regular lines - end
 
@@ -4407,7 +4421,6 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
       }
 
       // do the strokes intersect?
-      //auxStroke->isSelfLoop(); // check if this stroke is self loop
       std::vector<DoublePair> parIntersections;
       if (intersect(auxStroke, s2, parIntersections, checkUsingBBox)) {
         DEBUG_LOG("\t" << auxStroke->getId() << " -x- " << s2->getId());
@@ -4421,24 +4434,17 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
           DEBUG_LOG(", y:" << s2->getPoint(parIntersections.at(pi).second).y);
           DEBUG_LOG("\n");
 
-          auto it = std::find_if(extensionList.begin(), extensionList.end(),
-            [&i](const ExtensionData& extensionData) {
-              return extensionData.vauxIndex == i;
-            });
-
-          if (it != extensionList.end()) {
-            if (auxStroke->getId() > s2->getId() || (auxStroke->getId() == s2->getId() && (endpointList[it->endpointIndex].extendsW0) == 0)) {
-              DEBUG_LOG("\tignored: A duplicate intersection in the reverse direction.\n");
-              continue;
-            }
-          }
-
           // calculate distance between s1 origin and s2 origin
           double originS1x = auxStroke->getPoint(0).x;
           double originS1y = auxStroke->getPoint(0).y;
           double originS2x = s2->getPoint(0).x;
           double originS2y = s2->getPoint(0).y;
           double d = tdistance(TPointD(originS1x, originS1y), TPointD(originS2x, originS2y));
+
+          if (d < AutocloseFactorMin) {
+            DEBUG_LOG("\tignored: Gap:" << d << " < autoCloseFactorMin:" << AutocloseFactorMin << " from s1 origin " << originS1x << "," << originS1y << " to s2 origin " << originS2x << "," << originS2y << ".\n");
+            continue;
+          }
 
           if (d > AutocloseFactor) {
             DEBUG_LOG("\tignored: Gap:" << d << " > autoCloseFactor:" << AutocloseFactor << " from s1 origin " << originS1x << "," << originS1y << " to s2 origin " << originS2x << "," << originS2y << ".\n");

@@ -33,6 +33,10 @@
 #include "drawutil.h"
 
 #include "../common/tvectorimage/tvectorimageP.h"
+
+//#include "tools/tool.h"
+//#include "tproperty.h"
+
 // ------------------------------------------------
 
 
@@ -465,6 +469,83 @@ public:
 
   //-----------------------------------------------------------------------------
 
+  //void setGapCheck() {
+  //  std::wstring s = m_type.getValue();
+  //  if (!s.empty()) {
+  //    std::cout << "\tTape type:" << ::to_string(s) << "\n";
+
+  //    ToonzCheck* check = ToonzCheck::instance();
+
+  //    if (s == FREEHAND) {
+  //      check->setCheck(ToonzCheck::eLineExtensionGapClose);
+  //    }
+  //    else {
+  //      check->clearCheck(ToonzCheck::eLineExtensionGapClose);
+  //    }
+
+  //  }
+  //  else {
+  //    std::cout << "\tTape type unknown\n";
+  //  }
+  //}
+
+  //void setGapCheck() {
+  //  std::wstring s = m_type.getValue();
+  //  if (s.empty()) {
+  //    std::cout << "\tTape type unknown\n";
+  //    return;
+  //  }
+
+  //  std::cout << "\tTape type:" << ::to_string(s) << "\n";
+
+  //  ToonzCheck* check = ToonzCheck::instance();
+  //  bool isFreehand = (s == FREEHAND);
+
+  //  // Only update if the state has changed
+  //  if (isFreehand != (check->getChecks() & ToonzCheck::eLineExtensionGapClose)) {
+  //    if (isFreehand) {
+  //      check->setCheck(ToonzCheck::eLineExtensionGapClose);
+  //    }
+  //    else {
+  //      check->clearCheck(ToonzCheck::eLineExtensionGapClose);
+  //    }
+  //  }
+  //}
+
+
+  void setGapCheck() {
+    std::wstring s = m_type.getValue();
+    if (s.empty()) {
+      std::cout << "\tTape type unknown\n";
+      return;
+    }
+
+    std::cout << "\tTape type:" << ::to_string(s) << "\n";
+
+    ToonzCheck* check = ToonzCheck::instance();
+    bool isFreehand = (s == FREEHAND);
+    bool isCurrentlySet = check->isCheckEnabled(ToonzCheck::eLineExtensionGapClose);
+
+    if (isFreehand != isCurrentlySet) {
+      if (isFreehand) {
+        check->setCheck(ToonzCheck::eLineExtensionGapClose);
+      }
+      else {
+        check->clearCheck(ToonzCheck::eLineExtensionGapClose);
+      }
+    }
+  }
+
+
+
+  //-----------------------------------------------------------------------------
+
+  //const TEnumProperty& getTypeProperty() const {
+  //  return m_type;
+  //}
+  
+  //-----------------------------------------------------------------------------
+
   bool onPropertyChanged(std::string propertyName) override {
     TapeMode       = ::to_string(m_mode.getValue());
     TapeSmooth     = (int)(m_smooth.getValue());
@@ -477,10 +558,16 @@ public:
     m_selectionRect = TRectD();
     m_startRect     = TPointD();
 
+    if (propertyName == "Type") {
+      setGapCheck();
+      return true;
+    }
+
     if (propertyName == "Distance" &&
         (ToonzCheck::instance()->getChecks() & ToonzCheck::eAutoclose))
       notifyImageChanged();
     return true;
+
   }
 
   //-----------------------------------------------------------------------------
@@ -607,65 +694,6 @@ public:
       drawConnection(firstPts[i], secondPts[i]);
     }
     // glPopMatrix();
-  }
-
-  //-------- temporary - TomDoingArt--------------------------------------------------------------------
-
-  void draw2() {
-    double pixelSize2 = getPixelSize() * getPixelSize();
-    m_thick = sqrt(pixelSize2) / 2.0;
-    /*
-    if (m_makePick) {
-      if (m_currentStyleId != 0) {
-        // Il pick in modalita' polyline e rectangular deve essere fatto soltanto
-        // dopo aver cancellato il
-        //"disegno" della polyline altrimenti alcuni pixels neri delle spezzate
-        // che la
-        // compongono vengono presi in considerazione nel calcolo del "colore
-        // medio"
-        if (m_pickType.getValue() == POLYLINE_PICK && m_drawingPolyline.empty())
-          doPolylineFreehandPick();
-        else if (m_pickType.getValue() == RECT_PICK && m_drawingRect.isEmpty())
-          pickRect();
-        else if (m_pickType.getValue() == NORMAL_PICK)
-          pick();
-        else if (m_pickType.getValue() == FREEHAND_PICK && m_stroke)
-          doPolylineFreehandPick();
-      }
-      return;
-    }
-    if (m_passivePick.getValue() == true) {
-      passivePick();
-    }
-    if (m_pickType.getValue() == RECT_PICK && !m_makePick) {
-      TPixel color = ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
-        ? TPixel32::White
-        : TPixel32::Red;
-      ToolUtils::drawRect(m_drawingRect, color, 0x3F33, true);
-    }
-    else if (m_pickType.getValue() == POLYLINE_PICK &&
-      !m_drawingPolyline.empty()) {
-      TPixel color = ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
-        ? TPixel32::White
-        : TPixel32::Black;
-      tglColor(color);
-      tglDrawCircle(m_drawingPolyline[0], 2);
-      glBegin(GL_LINE_STRIP);
-      for (UINT i = 0; i < m_drawingPolyline.size(); i++)
-        tglVertex(m_drawingPolyline[i]);
-      tglVertex(m_mousePosition);
-      glEnd();
-    }
-    else if (m_pickType.getValue() == FREEHAND_PICK &&
-      */
-    if (m_type.getValue() == FREEHAND &&
-      !m_track.isEmpty()) {
-      TPixel color = ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
-        ? TPixel32::White
-        : TPixel32::Black;
-      tglColor(color);
-      m_track.drawAllFragments();
-    }
   }
 
   //-----------------------------------------------------------------------------
@@ -1140,6 +1168,7 @@ public:
 
   //----------------------------------------------------------------------
 
+/*
   void tapeFreehand(const TVectorImageP& vi, TStroke* stroke) {
     DEBUG_LOG("tapeFreehand()\n");
 
@@ -1157,7 +1186,6 @@ public:
       undo = lineExtensionAutoCloseUndo;
     }
 
-    //get closing points in two vectors startPoints and endPoints.
     std::vector<std::pair<int, double>> startPoints, endPoints;
     std::vector<std::pair<std::pair<double, double>, std::pair<double, double>>> lineExtensions;
     getLineExtensionClosingPoints(stroke->getBBox(), vi, startPoints, endPoints, lineExtensions, false, false);
@@ -1239,8 +1267,8 @@ public:
             //points[1].thick = points[2].thick = points[0].thick; // all points to first point
 
             //Tapered close lines
-            points[1].thick = points[0].thick / 2;
-            points[2].thick = 0.5;
+            //points[1].thick = points[0].thick / 2;
+            //points[2].thick = 0.5;
 
             TStroke* gapCloseStroke = new TStroke(points);
             gapCloseStroke->setStyle(colorStyle);
@@ -1275,7 +1303,122 @@ public:
       }
     }
   } // end of - void tapeFreehand(const TVectorImageP& vi, TStroke* stroke)
+  */
   
+  void tapeFreehand(const TVectorImageP& vi, TStroke* stroke) {
+    DEBUG_LOG("tapeFreehand()\n");
+
+    if (!vi || !stroke) return;
+
+    std::vector<TFilledRegionInf>* fillInformation = new std::vector<TFilledRegionInf>;
+    ImageUtils::getFillingInformationOverlappingArea(vi, *fillInformation, stroke->getBBox());
+
+    std::vector<std::pair<int, double>> startPoints, endPoints;
+    std::vector<std::pair<std::pair<double, double>, std::pair<double, double>>> lineExtensions;
+    getLineExtensionClosingPoints(stroke->getBBox(), vi, startPoints, endPoints, lineExtensions, false, false);
+
+    assert(startPoints.size() == endPoints.size());
+
+    std::vector<TPointD> startP(startPoints.size()), endP(startPoints.size());
+    for (UINT i = 0; i < startPoints.size(); i++) {
+      startP[i] = vi->getStroke(startPoints[i].first)->getPoint(startPoints[i].second);
+      endP[i] = vi->getStroke(endPoints[i].first)->getPoint(endPoints[i].second);
+    }
+
+    if (!startPoints.empty()) TUndoManager::manager()->beginBlock();
+
+    for (UINT i = 0; i < startPoints.size(); i++) {
+      m_strokeIndex1 = startPoints[i].first;
+      m_strokeIndex2 = endPoints[i].first;
+      m_w1 = startPoints[i].second;
+      m_w2 = endPoints[i].second;
+
+      int type = doTape(vi, fillInformation, m_joinStrokes.getValue());
+
+      if (type == p2p && m_strokeIndex1 != m_strokeIndex2) {
+        for (UINT j = i + 1; j < startPoints.size(); j++) {
+          rearrangeClosingPoints(vi, startPoints[j], startP[j]);
+          rearrangeClosingPoints(vi, endPoints[j], endP[j]);
+        }
+      }
+      else if (type == p2l || (type == p2p && m_strokeIndex1 == m_strokeIndex2)) {
+        for (UINT j = i + 1; j < startPoints.size(); j++) {
+          if (startPoints[j].first == m_strokeIndex1)
+            startPoints[j].second = vi->getStroke(m_strokeIndex1)->getW(startP[j]);
+          if (endPoints[j].first == m_strokeIndex1)
+            endPoints[j].second = vi->getStroke(m_strokeIndex1)->getW(endP[j]);
+        }
+      }
+    }
+
+    if (!startPoints.empty()) TUndoManager::manager()->endBlock();
+
+    // Apply symmetry if active
+    if (m_polyline.hasSymmetryBrushes()) {
+      for (int i = 1; i < m_polyline.getBrushCount(); ++i) {
+        // Compute transform to apply
+        TStroke* symmetryGuide = m_polyline.makeRectangleStroke(i);
+        //TAffine transform = m_polyline.getSymmetryBrush(i)->getTransform();
+
+        // Create a transformed version of the original stroke
+        TStroke* transformedStroke = new TStroke(*stroke);
+        TPointD src = m_stroke->getBBox().getP00();
+        TPointD dst = symmetryGuide->getBBox().getP00();
+        TAffine transform = TTranslation(dst - src);
+
+        // Call tapeFreehand recursively on the transformed stroke
+        tapeFreehand(vi, transformedStroke);
+
+        delete transformedStroke;
+      }
+    }
+
+  }
+
+  //----------------------------------------------------------------------
+
+  void multiTapeFreehand(TStroke* stroke) {
+    TTool::Application* app = TTool::getApplication();
+
+    TFrameId firstFrameId = m_firstFrameId;
+    TFrameId lastFrameId = getFrameId();
+
+    if (firstFrameId > lastFrameId)
+      std::swap(firstFrameId, lastFrameId);
+
+    std::vector<TFrameId> allFids;
+    m_level->getFids(allFids);
+
+    std::vector<TFrameId>::iterator i0 = allFids.begin();
+    while (i0 != allFids.end() && *i0 < firstFrameId) i0++;
+    std::vector<TFrameId>::iterator i1 = i0;
+    while (i1 != allFids.end() && *i1 <= lastFrameId) i1++;
+    std::vector<TFrameId> fids(i0, i1);
+
+    if (fids.empty()) return;
+
+    enum TInbetween::TweenAlgorithm algorithm = TInbetween::LinearInterpolation;
+    switch (m_multi.getIndex()) {
+    case 2: algorithm = TInbetween::EaseInInterpolation; break;
+    case 3: algorithm = TInbetween::EaseOutInterpolation; break;
+    case 4: algorithm = TInbetween::EaseInOutInterpolation; break;
+    }
+
+    TUndoManager::manager()->beginBlock();
+    for (int i = 0; i < (int)fids.size(); ++i) {
+      double t = fids.size() > 1 ? (double)i / (double)(fids.size() - 1) : 0.5;
+      t = TInbetween::interpolation(t, algorithm);
+
+      TFrameId fid = fids[i];
+      app->getCurrentFrame()->setFid(fid);
+      TVectorImageP vi = m_level->getFrame(fid, true);
+      if (!vi) continue;
+
+      tapeFreehand(vi, stroke);  // Apply tape to each frame
+    }
+    TUndoManager::manager()->endBlock();
+  }
+
     //----------------------------------------------------------------------
     
   void multiTapeRect(TFrameId firstFrameId, TFrameId lastFrameId) {
@@ -1528,23 +1671,50 @@ public:
 
     if (vi && m_type.getValue() == FREEHAND) {
       DEBUG_LOG("leftButtonUp() FREEHAND\n");
-      //if (m_polyline.hasSymmetryBrushes())
 
       closeFreehand(pos);
 
+      if (m_multi.getIndex()) {
+        // first click: store info
+        if (!m_firstFrameSelected) {
+          m_currCell = std::pair<int, int>(getColumnIndex(), getFrame());
+          m_firstFrameId = m_veryFirstFrameId = getFrameId();
+          m_firstFrameIdx = getFrame();
+          m_level = app->getCurrentLevel()->getLevel()
+            ? app->getCurrentLevel()->getSimpleLevel()
+            : 0;
+          m_firstFrameSelected = true;
+        }
+        else {
+          multiTapeFreehand(m_stroke);
+
+          if (e.isShiftPressed()) {
+            m_currCell = std::pair<int, int>(getColumnIndex(), getFrame());
+            m_firstFrameId = getFrameId();
+            m_firstFrameIdx = getFrame();
+          }
+          else {
+            if (app->getCurrentFrame()->isEditingScene()) {
+              app->getCurrentColumn()->setColumnIndex(m_currCell.first);
+              app->getCurrentFrame()->setFrame(m_currCell.second);
+            }
+            else
+              app->getCurrentFrame()->setFid(m_veryFirstFrameId);
+            m_firstFrameSelected = false;
+          }
+
+          m_track.reset();
+          notifyImageChanged();
+          invalidate();
+          return;
+        }
+      }
+
+      // No multi-tape: do normal tape
       TUndoManager::manager()->beginBlock();
-
       tapeFreehand(vi, m_stroke);
-      
-      //if (m_polyline.hasSymmetryBrushes()) {
-      //  for (int i = 1; i < m_polyline.getBrushCount(); i++) {
-      //    TStroke* symmStroke = m_polyline.makeRectangleStroke(i);
-      //    TRectD symmSelectionRect = symmStroke->getBBox();
-      //    tapeRect(vi, symmSelectionRect);
-      //  }
-
       TUndoManager::manager()->endBlock();
-      //}
+
       m_track.reset();
       notifyImageChanged();
       invalidate();
@@ -1605,10 +1775,18 @@ public:
     //      getApplication()->editImage();
     //    m_selectionRect = TRectD();
     m_startRect     = TPointD();
+    std::cout << "VectorTapeTool onEnter()\n";
+    //setGapCheck();
   }
 
   void onActivate() override {
-    if (!m_firstTime) return;
+
+    if (!m_firstTime) {
+      std::cout << "VectorTapeTool onActivate(), not my first time.\n";
+      setGapCheck();
+      return;
+    }
+    std::cout << "VectorTapeTool onActivate(), first time.\n";
 
     std::wstring s = ::to_wstring(TapeMode.getValue());
     if (s != L"") m_mode.setValue(s);
@@ -1622,6 +1800,8 @@ public:
     m_firstTime     = false;
     m_selectionRect = TRectD();
     m_startRect     = TPointD();
+
+    setGapCheck();
   }
 
   int getCursorId() const override {

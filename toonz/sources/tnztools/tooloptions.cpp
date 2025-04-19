@@ -2598,9 +2598,11 @@ TapeToolOptionsBox::TapeToolOptionsBox(QWidget *parent, TTool *tool,
   m_autocloseLabel->setEnabled(!isNormalType);
   m_multiFrameMode->setEnabled(!isNormalType);
 
+  bool isFreehandType = m_typeMode->getProperty()->getValue() == L"Freehand";
+
   bool isLineToLineMode =
       m_toolMode->getProperty()->getValue() == L"Line to Line";
-  m_joinStrokesMode->setEnabled(!isLineToLineMode);
+  m_joinStrokesMode->setEnabled(!isLineToLineMode || isFreehandType);
 
   bool isJoinStrokes = m_joinStrokesMode->isChecked();
   m_smoothMode->setEnabled(!isLineToLineMode && isJoinStrokes);
