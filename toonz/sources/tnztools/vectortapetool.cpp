@@ -34,7 +34,7 @@
 
 #include "../common/tvectorimage/tvectorimageP.h"
 
-#include "tapeenv.h"
+//#include "tapeenv.h"
 
 // ------------------------------------------------
 

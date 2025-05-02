@@ -34,7 +34,7 @@ bool debug_mode_1 = false;  // Set to false to disable debug output
 #include "tvectorimage.h"  // make sure this include is at the top
 //#include "strokehookfixer.h"
 
-#include "tools/tapeenv.h"
+//#include "tools/tapeenv.h"
 
 //extern TEnv::DoubleVar AutocloseFactorMin;
 //extern TEnv::DoubleVar AutocloseFactor;
