@@ -847,7 +847,7 @@ static void drawLineExtensionAutocloses(TVectorImage* vi, TVectorRenderData& rd)
     debug_mode = false;
   }
   else {
-    debug_mode = false;
+    debug_mode = true;
   }
   static TPalette* plt = 0;
   const int ROUNDINGFACTOR = 4;
