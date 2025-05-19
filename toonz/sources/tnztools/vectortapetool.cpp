@@ -43,7 +43,7 @@
 // For Qt translation support
 #include <QCoreApplication>
 
-bool debug_mode = true;  // Set to false to disable debug output
+bool debug_mode = false;  // Set to false to disable debug output
 #define DEBUG_LOG(x) if (debug_mode) std::cout << x // << std::endl
 
 using namespace ToolUtils;
@@ -68,7 +68,8 @@ TEnv::DoubleVar AutocloseFactor("InknpaintAutocloseFactor", 4.0);
 TEnv::IntVar TapeRange("InknpaintTapeRange", 0);
 
 TEnv::DoubleVar TapeDehookFactorMin("InknpaintTapeDehookMin", 0.01);
-TEnv::DoubleVar TapeDehookFactorMax("InknpaintTapeDehookMax", 0.30);
+TEnv::DoubleVar TapeDehookFactorMax("InknpaintTapeDehookMax", 0.20);
+TEnv::DoubleVar TapeDehookAngleThreshold("InknpaintTapeDehookAngleThreshold", 30.00);
 TEnv::DoubleVar LineExtensionAngle("InknpaintTapeLineExtensionAngle", 0.30);
 
 namespace {
@@ -404,9 +405,8 @@ class VectorTapeTool final : public TTool {
   TEnumProperty m_type;
   TEnumProperty m_multi;
   TDoublePairProperty m_dehookFactor;
+  TDoubleProperty m_dehookAngleThreshold;
   TDoubleProperty m_lineExtensionAngle;
-  //TDoubleProperty m_startAt;
-  //TDoubleProperty m_incBy;
 
   SymmetryStroke m_polyline;
 
@@ -427,9 +427,8 @@ public:
       , m_w1(-1.0)
       , m_w2(-1.0)
       , m_pixelSize(1)
-      //, m_startAt("Start At", 0.0, 1.0, 0.1)  // (label, min, max, default)
-      //, m_incBy("Inc. By", 0.01, .2, .05) // (label, min, max, default)
       , m_lineExtensionAngle("LineExtAngle", 0.05, 0.9, .30) // (label, min, max, default)
+      , m_dehookAngleThreshold("DehookAngleThreshold", 10.0, 180.0, 30.00) // (label, min, max, default)
       , m_dehookFactor("Dehook", 0.0, 0.90, 0.0, .30)
       , m_smooth("Smooth", false)  // W_ToolOptions_Smooth
       , m_joinStrokes("JoinStrokes", false)
@@ -473,6 +472,9 @@ public:
 
     m_dehookFactor.setId("Dehook");
     m_prop.bind(m_dehookFactor);
+
+    m_dehookFactor.setId("DehookAngleThreshold");
+    m_prop.bind(m_dehookAngleThreshold);
 
     m_lineExtensionAngle.setId("LineExtAngle");
     m_prop.bind(m_lineExtensionAngle);
@@ -563,7 +565,7 @@ public:
   //-----------------------------------------------------------------------------
 
   bool onPropertyChanged(std::string propertyName) override {
-    DEBUG_LOG("onPropertyChanged() for:" << propertyName << "\n");
+    //DEBUG_LOG("onPropertyChanged() for:" << propertyName << "\n");
     TapeMode       = ::to_string(m_mode.getValue());
     TapeSmooth     = (int)(m_smooth.getValue());
     TapeRange      = m_multi.getIndex();
@@ -576,6 +578,7 @@ public:
     m_startRect     = TPointD();
     TapeDehookFactorMin = (double)(m_dehookFactor.getValue().first);
     TapeDehookFactorMax = (double)(m_dehookFactor.getValue().second);
+    TapeDehookAngleThreshold = (double)(m_dehookAngleThreshold.getValue());
     LineExtensionAngle = (double)(m_lineExtensionAngle.getValue());
 
     if (propertyName == "Type") {
@@ -595,6 +598,12 @@ public:
       return true;
     }
 
+    if ((propertyName == "DehookAngleThreshold") &&
+      (ToonzCheck::instance()->getChecks() & ToonzCheck::eAutoclose)) {
+      notifyImageChanged();
+      return true;
+    }
+
     if ((propertyName == "LineExtAngle") &&
       (ToonzCheck::instance()->getChecks() & ToonzCheck::eAutoclose)) {
       notifyImageChanged();
@@ -607,6 +616,7 @@ public:
     //m_startAt.setQStringName(tr("Start At"));
     //m_incBy.setQStringName(tr("Inc. By"));
     m_lineExtensionAngle.setQStringName(tr("Line Ext. Angle"));
+    m_dehookAngleThreshold.setQStringName(tr("Threshold Angle"));
     m_dehookFactor.setQStringName(tr("Dehook"));
 
     m_smooth.setQStringName(tr("Smooth"));
@@ -657,7 +667,7 @@ public:
 
     TVectorImageP vi(getImage(false));
     if (!vi) return;
-    DEBUG_LOG("draw()\n");
+    //DEBUG_LOG("draw()\n");
     glLineWidth(1.0 * devPixRatio);
 
     // TAffine viewMatrix = getViewer()->getViewMatrix();
@@ -1666,8 +1676,11 @@ public:
         TUndoManager::manager()->beginBlock();
       }
 
-      TRectD strokeBBox = m_stroke->getBBox();
-      DEBUG_LOG("leftButtonUp() FREEHAND, m_stroke, x0,y0: " << strokeBBox.x0 << "," << strokeBBox.y0 << " x1,y1: " << strokeBBox.x1 << "," << strokeBBox.y1 << "\n");
+      TRectD strokeBBox;
+      if (m_stroke) {
+         strokeBBox = m_stroke->getBBox();
+        DEBUG_LOG("leftButtonUp() FREEHAND, m_stroke, x0,y0: " << strokeBBox.x0 << "," << strokeBBox.y0 << " x1,y1: " << strokeBBox.x1 << "," << strokeBBox.y1 << "\n");
+      }
       tapeFreehand(vi, m_stroke, m_track.hasSymmetryBrushes());
 
       if (m_track.hasSymmetryBrushes()) {
@@ -1769,9 +1782,8 @@ public:
     m_firstTime     = false;
     m_selectionRect = TRectD();
     m_startRect     = TPointD();
-    m_dehookFactor.setValue(
-      TDoublePairProperty::Value(TapeDehookFactorMin, TapeDehookFactorMax));
-
+    m_dehookFactor.setValue(TDoublePairProperty::Value(TapeDehookFactorMin, TapeDehookFactorMax));
+    m_dehookAngleThreshold.setValue(TapeDehookAngleThreshold);
     m_lineExtensionAngle.setValue(LineExtensionAngle);
     //std::cout << "VectorTapeTool onActivate() setValue on TapeStartAt to:" << TapeStartAt << "\n";
     //m_startAt.setValue(TapeStartAt);

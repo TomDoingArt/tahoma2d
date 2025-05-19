@@ -44,12 +44,9 @@ bool debug_mode_1 = false;  // Set to false to disable debug output
 TEnv::DoubleVar AutocloseFactorMin("InknpaintAutocloseFactorMin", 1.15);
 TEnv::DoubleVar AutocloseFactor("InknpaintAutocloseFactor", 4.0);
 
-//TEnv::DoubleVar TapeStartAt("InknpaintTapeStartAt", 0.1);
-//TEnv::DoubleVar TapeIncBy("InknpaintTapeIncBy", 0.05);
-
 TEnv::DoubleVar TapeDehookFactorMin("InknpaintTapeDehookMin", 0.01);
-TEnv::DoubleVar TapeDehookFactorMax("InknpaintTapeDehookMax", 0.30);
-
+TEnv::DoubleVar TapeDehookFactorMax("InknpaintTapeDehookMax", 0.20);
+TEnv::DoubleVar TapeDehookAngleThreshold("InknpaintTapeDehookAngleThreshold", 30.00);
 TEnv::DoubleVar LineExtensionAngle("InknpaintTapeLineExtensionAngle", 0.30);
 
 
@@ -3961,195 +3958,400 @@ struct IntersectionTemp {
 
 //-----------------------------------------------------------------------------
 
-#include <vector>
-#include <utility>
-#include <cmath>
+inline double getTangentAngleBetweenW(TStroke* stroke, double w1, double w2) {
+  if (!stroke || stroke->getControlPointCount() < 2){
+    DEBUG_LOG("\tstroke->getControlPointCount() < 2 for stroke:" << stroke->getId() << ", w1:" << w1 << ", w2:" << w2 << "\n");
+    return 0.0;
+  }
 
-// Utility to normalize a TPointD
-inline TPointD normalizeSafe(const TPointD& p) {
-  double len = norm(p);
-  if (len > 0.0001)
-    return p * (1.0 / len);
-  else
-    return TPointD(0, 0);
+  // Clamp W values
+  w1 = std::clamp(w1, 0.0, 1.0);
+  w2 = std::clamp(w2, 0.0, 1.0);
+
+  // Avoid exact same W values
+  if (std::abs(w2 - w1) < 0.0001) {
+    DEBUG_LOG("\tstd::abs(w2 - w1) < 0.0001 for stroke:" << stroke->getId() << ", w1:" << w1 << ", w2:" << w2 << "\n");
+    return 0.0;
+  }
+
+  // Get points
+  TPointD p1 = stroke->getThickPoint(w1);
+  TPointD p2 = stroke->getThickPoint(w2);
+  TPointD delta = p2 - p1;
+
+  DEBUG_LOG("\tstroke:" << stroke->getId()
+    << ", w1:" << w1
+    << ", p1.x:" << p1.x
+    << ", y:" << p1.y
+    << ", w2:" << w2
+    << ", p2.x:" << p2.x
+    << ", y:" << p2.y
+    << "\n");
+
+  if (norm2(delta) < 0.000001) {
+    DEBUG_LOG("\tnorm2(delta) < 0.000001, so return 0.0\n");
+    return 0.0;
+  }
+
+  double angleRadians = std::atan2(delta.y, delta.x);
+  double angleDegrees = angleRadians * (180.0 / M_PI);
+  DEBUG_LOG("\t\tangleDegrees" << angleDegrees << "\n");
+  return angleDegrees;
 }
 
-inline bool detectHookTurbo(TStroke* stroke, bool isStart, std::pair<double, double>& outDirection, double* outAngle = nullptr) {
-  if (!stroke || stroke->getControlPointCount() < 2) return false;
+inline double getTipwardTangentAngle(TStroke* stroke, bool isStart, double offset = 5.0) {
+  if (!stroke || stroke->getControlPointCount() < 2)
+    return 0.0;
 
-  //static constexpr double wSampleStartingValue = .1;
-  //static constexpr double wSampleIncrement = .05;
-  //static constexpr double wSamplesStart[3] = { wSampleStartingValue + wSampleIncrement * 2, wSampleStartingValue + wSampleIncrement, wSampleStartingValue }; //change these to determine hook over a shorter W range on the W0 end
-  //static constexpr double wSamplesEnd[3] = { 1 - wSampleStartingValue - wSampleIncrement * 2, 1 - wSampleStartingValue - wSampleIncrement, 1 - wSampleStartingValue}; //change these to determine hook over a shorter W range on the W1 end
+  const double length = stroke->getLength();
+  offset = std::clamp(offset, 0.1, length);
+
+  double d1, d2;
+
+  if (isStart) {
+    d1 = offset;
+    d2 = 0.0;
+  }
+  else {
+    d1 = length - offset;
+    d2 = length;
+  }
+
+  d1 = std::clamp(d1, 0.0, length);
+  d2 = std::clamp(d2, 0.0, length);
+
+  TPointD p1 = stroke->getThickPointAtLength(d1);
+  TPointD p2 = stroke->getThickPointAtLength(d2);
+  TPointD delta = p2 - p1;
+
+  if (norm2(delta) < 0.000001)
+    return 0.0;
+
+  double angleRadians = std::atan2(delta.y, delta.x);
+  double angleDegrees = angleRadians * (180.0 / M_PI);
+  return angleDegrees;
+}
+
+inline double getTangentAngleBetweenDistance(TStroke* stroke, double distance1, double distance2) {
+  if (!stroke || stroke->getControlPointCount() < 2)
+    return 0.0;
+
+  double length = stroke->getLength();
+  distance1 = std::clamp(distance1, 0.0, length);
+  distance2 = std::clamp(distance2, 0.0, length);
+
+  if (std::abs(distance2 - distance1) < 0.0001)
+    return 0.0;
+
+  TPointD p1 = stroke->getThickPointAtLength(distance1);
+  TPointD p2 = stroke->getThickPointAtLength(distance2);
+  TPointD delta = p2 - p1;
+
+  if (norm2(delta) < 0.000001)
+    return 0.0;
+
+  double angleRadians = std::atan2(delta.y, delta.x);
+  double angleDegrees = angleRadians * (180.0 / M_PI);
+
+  DEBUG_LOG("Stroke:" << stroke->getId()
+    << ", distance1:" << distance1
+    << ", distance2:" << distance2
+    << ", angleDegrees:" << angleDegrees << "\n");
+
+  return angleDegrees;
+}
+
+inline bool detectHookByAngleDifferenceUsingDistance(TStroke* stroke, bool isStart, double distMin, double distMax, double angleThresholdDeg,
+  double& outAngleDelta, double& outBodyAngleDeg) {
+  if (!stroke || stroke->getControlPointCount() < 2) {
+    outAngleDelta = 0.0;
+    outBodyAngleDeg = 0.0;
+    return false;
+  }
+
+  const double length = stroke->getLength();
+  const double angleSampleFactor = 2.0;
+
+  // Clamp distances
+  distMin = std::clamp(distMin, angleSampleFactor, length - angleSampleFactor); // inset by 5 on upper and lower limits for...
+  distMax = std::clamp(distMax, angleSampleFactor, length - angleSampleFactor); // later logic to always return an angle
+
+  // Body segments: always facing tipward (from inner to outer toward tip)
+  double body1_min = isStart ? distMin + angleSampleFactor : length - distMin - angleSampleFactor;
+  double body2_min = isStart ? distMin : length - distMin;
+
+  double body1_max = isStart ? distMax + angleSampleFactor : length - distMax - angleSampleFactor;
+  double body2_max = isStart ? distMax : length - distMax;
+
+  // Clamp to safe range
+  body1_min = std::clamp(body1_min, 0.0, length);
+  body2_min = std::clamp(body2_min, 0.0, length);
+  body1_max = std::clamp(body1_max, 0.0, length);
+  body2_max = std::clamp(body2_max, 0.0, length);
+
+  // Compute angles
+  double tipAngleDeg = getTipwardTangentAngle(stroke, isStart, angleSampleFactor);
+  double bodyAngleDegMin = getTangentAngleBetweenDistance(stroke, body1_min, body2_min);
+  double bodyAngleDegMax = getTangentAngleBetweenDistance(stroke, body1_max, body2_max);
+
+  // Output body angle for further use
+  outBodyAngleDeg = bodyAngleDegMax;
+  //outBodyAngleDeg = bodyAngleDegMin;
+
+  // Calculate delta (wrapped to [0, 180])
+  double delta = std::fmod(std::abs(tipAngleDeg - bodyAngleDegMin), 360.0);
+  if (delta > 180.0)
+    delta = 360.0 - delta;
+
+  outAngleDelta = delta;
+
+  DEBUG_LOG("Stroke:" << stroke->getId()
+    << ", isStart:" << isStart
+    << ", distMin:" << distMin
+    << ", distMax:" << distMax
+    << ", tipAngleDeg:" << tipAngleDeg
+    << ", bodyAngleDegMin:" << bodyAngleDegMin
+    << ", outAngleDelta:" << outAngleDelta
+    << ", outBodyAngleDeg:" << outBodyAngleDeg
+    << ", angleThresholdDeg:" << angleThresholdDeg << "\n");
+
+  return delta > angleThresholdDeg;
+}
+
+/**/
+inline bool detectHookByAngleDifference(TStroke* stroke, bool isStart, double wMin, double wMax, double angleThresholdDeg,
+  double& outAngleDelta, double& outBodyAngleDeg) {
+  if (!stroke || stroke->getControlPointCount() < 2) {
+    outAngleDelta = 0.0;
+    outBodyAngleDeg = 0.0;
+    return false;
+  }
+
+  const double angleSampleFactor = 0.02; // how distant the sampled points are from each other.
+
+  DEBUG_LOG("Start Stroke:" << stroke->getId()
+    << ", isStart:" << isStart
+    << ", wMin:" << wMin
+    << ", wMax:" << wMax
+    << ", angleThresholdDeg:" << angleThresholdDeg << "\n");
+
+  // Clamp input
+  wMin = std::clamp(wMin, angleSampleFactor, 1.0);
+  wMax = std::clamp(wMax, angleSampleFactor, 1.0);
+
+  // 1. Endpoint segment (hook tip)
+  double w_tip1 = isStart ? angleSampleFactor : 1.0 - angleSampleFactor;
+  double w_tip2 = isStart ? 0.0 : 1.0;
+
+  // 2a. Stable body segment at wMin
+  double w_bodyMin_1 = isStart ? wMin : 1.0 - wMin;
+  double w_bodyMin_2 = isStart ? wMin - angleSampleFactor : 1.0 - wMin + angleSampleFactor;
+
+  // 2b. Stable body segment at wMax
+  double w_bodyMax_1 = isStart ? wMax : 1.0 - wMax;
+  double w_bodyMax_2 = isStart ? wMax - angleSampleFactor : 1.0 - wMax + angleSampleFactor;
+
+  // Clamp safely
+  //w_tip2 = std::clamp(w_tip2, 0.0, 1.0);
+  w_bodyMin_2 = std::clamp(w_bodyMin_2, 0.0, 1.0);
+  w_bodyMax_2 = std::clamp(w_bodyMax_2, 0.0, 1.0);
+
+  // Compute angles
+  double tipAngleDegTipward = getTipwardTangentAngle(stroke, isStart, angleSampleFactor);
+  double tipAngleDeg = getTangentAngleBetweenW(stroke, w_tip1, w_tip2);
+  double bodyAngleDegMin = getTangentAngleBetweenW(stroke, w_bodyMin_1, w_bodyMin_2);
+  double bodyAngleDegMax = getTangentAngleBetweenW(stroke, w_bodyMax_1, w_bodyMax_2);
+
+  // Save body angle (for extension logic)
+  outBodyAngleDeg = bodyAngleDegMax;
+
+  // Delta wrapped to [0, 180]
+  double delta = std::fmod(std::abs(tipAngleDeg - bodyAngleDegMin), 360.0);
+  if (delta > 180.0) delta = 360.0 - delta;
+
+  outAngleDelta = delta;
+
+  DEBUG_LOG("End Stroke:" << stroke->getId() 
+    << ", isStart:" << isStart 
+    << ", wMin:" << wMin
+    << ", wMax:" << wMax
+    << ", tipAngleDegTipward:" << tipAngleDegTipward
+    << ", tipAngleDeg:" << tipAngleDeg 
+    << ", bodyAngleDegMin:" << bodyAngleDegMin 
+    << ", outAngleDelta:" << outAngleDelta 
+    << ", outBodyAngleDeg:" << outBodyAngleDeg 
+    << ", angleThresholdDeg:" << angleThresholdDeg << "\n");
+
+  return delta > angleThresholdDeg;
+}
+/**/
+
+//-----------------------------------------------------------------------------
+
+inline bool detectHookByAngleProgression(TStroke* stroke, bool isStart, double wMin, double wMax, double angleThresholdDeg,
+  double& outAngleDelta, double& outPredictedAngleDeg) {
+  if (!stroke || stroke->getControlPointCount() < 2) {
+    outAngleDelta = 0.0;
+    outPredictedAngleDeg = 0.0;
+    return false;
+  }
+
+  const double angleSampleFactor = 0.02;
+
+  // Clamp and validate range
+  wMin = std::clamp(wMin, angleSampleFactor * 3, 1.0); // ensure enough room for 3 segments
+  wMax = std::clamp(wMax, angleSampleFactor * 3, 1.0);
+
+  DEBUG_LOG("Start Stroke:" << stroke->getId()
+    << ", isStart:" << isStart
+    << ", wMin:" << wMin
+    << ", wMax:" << wMax
+    << ", angleThresholdDeg:" << angleThresholdDeg << "\n");
+
+  // Sample 3 angle segments
+  auto getW = [&](double base, int offset) {
+    double w = base - angleSampleFactor * offset;
+    return std::clamp(w, 0.0, 1.0);
+  };
+
+  // Reverse W if checking end
+  auto adjustW = [&](double w) {
+    return isStart ? w : 1.0 - w;
+  };
+
+  double w1a = adjustW(getW(wMin, 2));
+  double w1b = adjustW(getW(wMin, 1));
+  double w2a = adjustW(getW(wMin, 1));
+  double w2b = adjustW(getW(wMin, 0));
+  double w3a = adjustW(getW(wMax, 1));
+  double w3b = adjustW(getW(wMax, 0));
+  double w_tip1 = isStart ? angleSampleFactor : 1.0 - angleSampleFactor;
+  double w_tip2 = isStart ? 0.0 : 1.0;
+
+  double a1 = getTangentAngleBetweenW(stroke, w1a, w1b);
+  double a2 = getTangentAngleBetweenW(stroke, w2a, w2b);
+  double a3 = getTangentAngleBetweenW(stroke, w3a, w3b);
+  double a_tip = getTangentAngleBetweenW(stroke, w_tip1, w_tip2);
+
+  // Normalize to avoid large jumps (handle wrapping)
+  auto normalizeAngle = [](double angle) {
+    while (angle < 0) angle += 360;
+    while (angle >= 360) angle -= 360;
+    return angle;
+  };
+
+  a1 = normalizeAngle(a1);
+  a2 = normalizeAngle(a2);
+  a3 = normalizeAngle(a3);
+  a_tip = normalizeAngle(a_tip);
+
+  // Predict next angle using progression
+  double delta1 = a2 - a1;
+  double delta2 = a3 - a2;
+
+  // Handle wrapping across 0/360 boundary
+  if (delta1 > 180) delta1 -= 360;
+  if (delta1 < -180) delta1 += 360;
+  if (delta2 > 180) delta2 -= 360;
+  if (delta2 < -180) delta2 += 360;
+
+  double predictedDelta = delta2; // extrapolate using last known change
+  double predictedAngle = a3 + predictedDelta;
+  predictedAngle = normalizeAngle(predictedAngle);
+
+  double delta = std::abs(predictedAngle - a_tip);
+  if (delta > 180.0) delta = 360.0 - delta;
+
+  outPredictedAngleDeg = predictedAngle;
+  outAngleDelta = delta;
+
+  DEBUG_LOG("Progression Angle Check:"
+    << "\n\t a1 = " << a1
+    << "\n\t a2 = " << a2
+    << "\n\t a3 = " << a3
+    << "\n\t predicted = " << predictedAngle
+    << "\n\t tip = " << a_tip
+    << "\n\t delta = " << delta << "\n");
+
+  return delta > angleThresholdDeg;
+}
+
+//-----------------------------------------------------------------------------
+
+inline bool detectHookByAngleProgressionTowardTip(
+  TStroke* stroke, bool isStart, double wMin, double wMax, double angleThresholdDeg,
+  double& outAngleDelta, double& outPredictedAngleDeg)
+{
+  if (!stroke || stroke->getControlPointCount() < 2) {
+    outAngleDelta = 0.0;
+    outPredictedAngleDeg = 0.0;
+    return false;
+  }
+
+  const double angleSampleFactor = 0.02;
+  wMin = std::clamp(wMin, angleSampleFactor, 1.0);
+  wMax = std::clamp(wMax, angleSampleFactor, 1.0);
+
+  auto getTowardTipAngle = [&](double from, double to) -> double {
+    return isStart ? getTangentAngleBetweenW(stroke, to, from)  // toward w=0
+      : getTangentAngleBetweenW(stroke, to, from); // toward w=1
+  };
+
+  auto adjustW = [&](double w) {
+    return isStart ? w : 1.0 - w;
+  };
   
-  //double wSampleStartingValue = TapeStartAt;
-  //double wSampleIncrement = TapeIncBy;
+  double wMid = (wMin + wMax) / 2;
 
-  double wTapeHookSampleStartingValue = TapeDehookFactorMin;
-  double wTapeHookSampleEndingValue = TapeDehookFactorMax;
+  double a1 = getTowardTipAngle(adjustW(wMin - angleSampleFactor), adjustW(wMin));
+  double a2 = getTowardTipAngle(adjustW(wMid - angleSampleFactor), adjustW(wMid));
+  double a3 = getTowardTipAngle(adjustW(wMax - angleSampleFactor), adjustW(wMax));
 
-  // expected values like: { 0.3, 0.2, 0.1 };
-  double wSamplesStart[3] = {
-    wTapeHookSampleEndingValue,
-    (wTapeHookSampleStartingValue + wTapeHookSampleEndingValue)/2,
-    wTapeHookSampleStartingValue
+
+  // Tip angle also pointing tipward
+  double w_tip1 = isStart ? angleSampleFactor : 1.0 - angleSampleFactor;
+  double w_tip2 = isStart ? 0.0 : 1.0;
+  double a_tip = getTangentAngleBetweenW(stroke, w_tip1, w_tip2);  // tipward direction
+
+  auto normalizeAngle = [](double angle) {
+    while (angle < 0) angle += 360;
+    while (angle >= 360) angle -= 360;
+    return angle;
   };
 
-  // expected values like: { 0.7, 0.8, 0.9 };
-  double wSamplesEnd[3] = {
-    1 - wTapeHookSampleEndingValue,
-    1 - ((wTapeHookSampleStartingValue + wTapeHookSampleEndingValue)/2),
-    1 - wTapeHookSampleStartingValue
-  };
+  a1 = normalizeAngle(a1);
+  a2 = normalizeAngle(a2);
+  a3 = normalizeAngle(a3);
+  a_tip = normalizeAngle(a_tip);
 
-  DEBUG_LOG("wSamplesStart(" << wSamplesStart[0] << ", " << wSamplesStart[1] << ", " << wSamplesStart[2]);
-  DEBUG_LOG("), wSamplesEnd(" << wSamplesEnd[0] << ", " << wSamplesEnd[1] << ", " << wSamplesEnd[2] << ").\n");
+  // Predict next angle from progression
+  double delta1 = a2 - a1;
+  double delta2 = a3 - a2;
 
-  const double* wSamples = isStart ? wSamplesStart : wSamplesEnd;
+  if (delta1 > 180) delta1 -= 360;
+  if (delta1 < -180) delta1 += 360;
+  if (delta2 > 180) delta2 -= 360;
+  if (delta2 < -180) delta2 += 360;
 
-  TPointD points[3];
-  for (int i = 0; i < 3; ++i)
-    points[i] = stroke->getThickPoint(wSamples[i]);
+  double predictedDelta = delta2;
+  double predictedAngle = normalizeAngle(a3 + predictedDelta);
 
-  TPointD avgDir(0, 0);
-  int validDirs = 0;
-  TPointD lastDir(0, 0);
+  // Compare predicted angle to actual tip angle
+  double delta = std::abs(predictedAngle - a_tip);
+  if (delta > 180.0) delta = 360.0 - delta;
 
-  for (int i = 0; i < 2; ++i) {
-    TPointD dir = points[i + 1] - points[i];
-    double len2 = dir.x * dir.x + dir.y * dir.y;
-    if (len2 > 0.0001) {
-      double len = sqrt(len2);
-      TPointD n(dir.x / len, dir.y / len);
-      avgDir.x += n.x;
-      avgDir.y += n.y;
-      lastDir = n;
-      ++validDirs;
-    }
-  }
+  outPredictedAngleDeg = predictedAngle;
+  outAngleDelta = delta;
 
-  if (validDirs == 0) return false;
+  DEBUG_LOG("Hook Prediction Toward Tip:"
+    << "\n\t a1 = " << a1
+    << "\n\t a2 = " << a2
+    << "\n\t a3 = " << a3
+    << "\n\t predicted = " << predictedAngle
+    << "\n\t a_tip = " << a_tip
+    << "\n\t delta = " << delta << "\n");
 
-  double avgLen = sqrt(avgDir.x * avgDir.x + avgDir.y * avgDir.y);
-  avgDir.x /= avgLen;
-  avgDir.y /= avgLen;
-
-  outDirection = std::make_pair(avgDir.x, avgDir.y);
-
-  double dotProd = lastDir.x * avgDir.x + lastDir.y * avgDir.y;
-  double angle = acos(std::clamp(dotProd, -1.0, 1.0)) * (180.0 / M_PI);
-  if (outAngle) *outAngle = angle;
-
-  double strokeLength = stroke->getLength(0.0, 1.0);
-  double dynamicThreshold = 12.0 + std::min(std::max(strokeLength - 50.0, 0.0) * 0.05, 13.0);
-
-  return angle > dynamicThreshold;
-}
-
-//-----------------------------------------------------------------------------
-
-void setSpeedLinear(TStroke* stroke, int handleIndex, int centerIndex) {
-  TPointD center = stroke->getControlPoint(centerIndex);
-  TPointD handle = stroke->getControlPoint(handleIndex);
-  TPointD dir = handle - center;
-  if (norm(dir) > 0.0) {
-    stroke->setControlPoint(handleIndex, center + (normalize(dir) * 0.01));
-  }
-}
-
-//-----------------------------------------------------------------------------
-
-double computeAdaptiveSpeedLength(TStroke* stroke) {
-  if (!stroke) return 0.01;
-
-  double length = stroke->getLength(0.0, 1.0);  // full stroke length
-
-  // Base length = 1% of stroke, clamped between 0.01 and 3.0
-  return std::clamp(length * 0.01, 0.01, 3.0);
-}
-
-
-void removeNextControlPoint(TStroke* stroke, int fixedHandleIndex) {
-  if (!stroke || stroke->getControlPointCount() <= 4)
-    return;
-
-  int cpCount = stroke->getControlPointCount();
-  if (fixedHandleIndex < 0 || fixedHandleIndex >= cpCount - 1)
-    return;
-
-  std::vector<TThickPoint> newPoints;
-  for (int i = 0; i < cpCount; ++i) {
-    if (i == fixedHandleIndex + 1) continue;  // SKIP the next control point
-    newPoints.push_back(stroke->getControlPoint(i));
-  }
-
-  stroke->reshape(&newPoints[0], newPoints.size());
-}
-
-
-void setStartSpeedOutLinear(TStroke* stroke) {
-  if (!stroke || stroke->getControlPointCount() < 4) return;
-
-  int originalCount = stroke->getControlPointCount();
-
-  TPointD p0 = stroke->getControlPoint(0);
-  TPointD p2 = stroke->getControlPoint(2);
-
-  TPointD dir = p2 - p0;
-  double n = norm(dir);
-
-  if (n > 0.0) {
-    dir = (dir * (1.0 / n));
-    double mag = computeAdaptiveSpeedLength(stroke);
-    stroke->setControlPoint(1, p0 + dir * mag);
-  }
-
-  int newCount = stroke->getControlPointCount();
-  if (newCount == originalCount + 1) {
-    removeNextControlPoint(stroke, 1);  // Remove after handle 1
-  }
-}
-
-
-void setEndSpeedInLinear(TStroke *stroke) {
-  if (!stroke || stroke->getControlPointCount() < 4) return;
-
-  int originalCount = stroke->getControlPointCount();
-  int cpCount = stroke->getControlPointCount();
-
-  TPointD pLast = stroke->getControlPoint(cpCount - 1);
-  TPointD pBefore2 = stroke->getControlPoint(cpCount - 3);
-
-  TPointD dir = pBefore2 - pLast;
-  double n = norm(dir);
-
-  if (n > 0.0) {
-    dir = (dir * (1.0 / n));
-    double mag = computeAdaptiveSpeedLength(stroke);
-    stroke->setControlPoint(cpCount - 2, pLast + dir * mag);
-  }
-
-  int newCount = stroke->getControlPointCount();
-  if (newCount == originalCount + 1) {
-    removeNextControlPoint(stroke, cpCount - 3);  // Remove after handle last-2
-  }
-}
-
-
-void setEndpointsLinearIfHookDetected(TStroke* stroke) {
-  if (!stroke || stroke->getControlPointCount() < 4)
-    return;
-
-  std::pair<double, double> dummyDirection;
-  double dummyAngle;
-
-  if (detectHookTurbo(stroke, true, dummyDirection, &dummyAngle)) {
-    setStartSpeedOutLinear(stroke);
-  }
-
-  if (detectHookTurbo(stroke, false, dummyDirection, &dummyAngle)) {
-    setEndSpeedInLinear(stroke);
-  }
+  return delta > angleThresholdDeg;
 }
 
 //-----------------------------------------------------------------------------
@@ -4312,7 +4514,7 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
 
   const int ROUNDINGFACTOR = 4;
   DEBUG_LOG("\n\n===================== getLineExtensionClosingPoints - begin ==================================================================\n\n");
-  DEBUG_LOG("getLineExtensionClosingPoints, strokeCount: " << strokeCount << ", autoCloseFactorMin:" << AutocloseFactorMin << ", autoCloseFactor: " << AutocloseFactor << ", TapeDehookFactorMin: " << TapeDehookFactorMin << ", TapeDehookFactorMax: " << TapeDehookFactorMax << "\n");
+  DEBUG_LOG("getLineExtensionClosingPoints, strokeCount: " << strokeCount << ", autoCloseFactorMin:" << AutocloseFactorMin << ", autoCloseFactor: " << AutocloseFactor << ", TapeDehookFactorMin: " << TapeDehookFactorMin << ", TapeDehookFactorMax: " << TapeDehookFactorMax << ", TapeDehookAngleThreshold: " << TapeDehookAngleThreshold << "\n");
 
   TVectorImage vaux; // the gap close candidate lines
 
@@ -4329,32 +4531,17 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
       continue;
     }
 
-    // ignore strokes which are expected to be color holding lines rather than visible lines
-    //if (s1->getStyle() == lineExtensionColorstyle) {
-    //  DEBUG_LOG("colorStyle is " << lineExtensionColorstyle << " so no extensions for stroke Id:" << s1->getId() << "\n");
-    //  continue;
-    //}
-
     // exclude lines from getting extensions based on the TRectD as a rough form of in-scope boundary.
     // for a more accurate boundary, consider passing the lasso stroke in the function call and using it in new algorithm instead of this bbox rectangle algorithm.
     if (!rect.overlaps(s1->getBBox())) {
       DEBUG_LOG("no overlap of stroke BBox so no extensions for stroke Id:" << s1->getId() << "\n");
       continue;
     }
-    //if (!rect.contains(s1->getBBox())) continue; // the stroke must be fully within the bounding box of the original lasso stroke
-    
-    //if (s1->getChunkCount() == 1) continue; // single point, not a line
-
-    //if (s1->getControlPointCount() < 2) {
-    //  DEBUG_LOG("controlPointCount is:" << s1->getControlPointCount() << " which is less than 2 so no extensions for stroke Id : " << s1->getId() << "\n");
-    //  continue;
-    //}
 
     if (s1->getLength() == 0) {
       DEBUG_LOG("length is:" << s1->getLength() << " so no extensions for stroke Id : " << s1->getId() << "\n");
       continue;
     }
-
 
     // ignore endpoints which are near to an intersection of their line.
     int viStrokeCount = vi->getStrokeCount();
@@ -4384,34 +4571,107 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
         }
       }
     }
-
-/**/
-    //DEBUG_LOG(", controlPointCount is:" << s1->getControlPointCount());
-  
-    // version of the usage that does not show angle information
-    //std::pair<double, double> avgDir_W0;
-    //bool hasHook_W0 = detectHook(s1, true, avgDir_W0);
-
     
     // fix hooked ends, if detected
-    DEBUG_LOG("\tFix hooked ends if detected...\n");
-    //setEndpointsLinearIfHookDetected(s1);
+    DEBUG_LOG("\tFix hooked ends if detected on ");
+    
+    double distMin = TapeDehookFactorMin * 100;  // pixels from the start or end
+    double distMax = TapeDehookFactorMax * 100;  // pixels from the start or end
+
+    DEBUG_LOG("line: " << s1->getId() << ", length : " << s1->getLength() << ", distMin:" << distMin << ", distMax:" << distMax << "\n");
+   
+    double len = AutocloseFactor;
+    TPointD basePoint = s1->getThickPoint(0.0);
+
+    // --- New Hook Detection ---
+    double hookAngleDelta = 0.0;
+    double cleanBodyAngle = 0.0;
+    
+    /*
+    // using the Distance method ------------------------------
+    bool hasHook_W0 = detectHookByAngleDifferenceUsingDistance(
+      s1,
+      true,
+      distMin,
+      distMax,
+      TapeDehookAngleThreshold,
+      hookAngleDelta,
+      cleanBodyAngle
+    );
+    */
+
+    /*
+    // Using the W method -----------------------
+    bool hasHook_W0 = detectHookByAngleDifference(
+      s1,
+      true,
+      TapeDehookFactorMin,
+      TapeDehookFactorMax,
+      TapeDehookAngleThreshold,
+      hookAngleDelta,
+      cleanBodyAngle
+    );
+    */
+
+    //double angleDelta, predictedAngle;
+    bool hasHook_W0 = detectHookByAngleProgressionTowardTip(
+      s1,
+      true,
+      TapeDehookFactorMin,
+      TapeDehookFactorMax,
+      TapeDehookAngleThreshold,
+      hookAngleDelta,
+      cleanBodyAngle);
 
 
+    TPointD basePoint_W1 = s1->getThickPoint(1.0);
 
-    std::pair<double, double> avgDir_W0;
-    double hookAngle_W0 = 0.0;
-    bool hasHook_W0 = detectHookTurbo(s1, true, avgDir_W0, &hookAngle_W0);
+    // --- New hook detection logic using body angle at W1 ---
+    double hookAngleDelta_W1 = 0.0;
+    double cleanBodyAngle_W1 = 0.0;
 
-    DEBUG_LOG("\tHook W0 detected:" << hasHook_W0 << " at angle:" << hookAngle_W0 << " degrees\n");
+    /*
+    // using the Distance method ------------------------------
+    bool hasHook_W1 = detectHookByAngleDifferenceUsingDistance(
+      s1,
+      false,
+      distMin,
+      distMax,
+      TapeDehookAngleThreshold,
+      hookAngleDelta_W1,
+      cleanBodyAngle_W1
+    );
+    */
 
-    std::pair<double, double> avgDir_W1;
-    double hookAngle_W1 = 0.0;
-    bool hasHook_W1 = detectHookTurbo(s1, false, avgDir_W1, &hookAngle_W1);
+    // Using the W method -------------------------
+    // Flip dehook factors for W1
+    //double wMin_W1 = 1.0 - TapeDehookFactorMin;
+    //double wMax_W1 = 1.0 - TapeDehookFactorMax;
 
-    DEBUG_LOG("\tHook W1 detected:" << hasHook_W1 << " at angle:" << hookAngle_W1 << " degrees\n");
+    /*
+    bool hasHook_W1 = detectHookByAngleDifference(
+      s1,
+      false,
+      TapeDehookFactorMin,
+      TapeDehookFactorMax,
+      TapeDehookAngleThreshold,
+      hookAngleDelta_W1,
+      cleanBodyAngle_W1
+    );
+    */
 
-   /**/
+    //double angleDelta_W1, predictedAngle_W1;
+    bool hasHook_W1 = detectHookByAngleProgressionTowardTip(
+      s1,
+      false,
+      TapeDehookFactorMin,
+      TapeDehookFactorMax,
+      TapeDehookAngleThreshold,
+      hookAngleDelta_W1,
+      cleanBodyAngle_W1
+    );
+
+
 
     //const double angleOffsetDegrees = 40.0; // Small spread angle (~10 degrees)
     //DEBUG_LOG("\t-------- LineExtensionAngle:" << LineExtensionAngle << "\n");
@@ -4434,48 +4694,38 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
 
         std::pair<double, double> startCenter, startLeft, startRight;
 
+
+        // Only apply fix if hook detected
         if (hasHook_W0) {
-        //if (false) {
-          /**/
-          double len = AutocloseFactor; // Extension length
-          TPointD basePoint = s1->getThickPoint(0.0);
+          //double tangentAngleDeg = cleanBodyAngle + 180.0;  // Flip direction
+          double tangentAngleDeg = cleanBodyAngle;
+          double tangentAngleRad = tangentAngleDeg * M_PI / 180.0;
 
-          TPointD direction(avgDir_W0.first, avgDir_W0.second);
-          TPointD cleanExtension = basePoint + direction * len;
+          // Center direction = clean direction
+          TPointD dirCenter(std::cos(tangentAngleRad), std::sin(tangentAngleRad));
+          TPointD centerPt = basePoint + dirCenter * len;
+          startCenter = std::make_pair(centerPt.x, centerPt.y);
 
-          // Center extension
-          startCenter = std::make_pair(cleanExtension.x, cleanExtension.y);
+          // Left/right fan from clean tangent
+          TPointD dirLeft(std::cos(tangentAngleRad + angleOffset), std::sin(tangentAngleRad + angleOffset));
+          TPointD dirRight(std::cos(tangentAngleRad - angleOffset), std::sin(tangentAngleRad - angleOffset));
 
-          // Now calculate left and right by rotating direction slightly
-          //const double angleOffsetDegrees = 10.0; // Small spread angle (~10 degrees)
-          //const double angleOffset = angleOffsetDegrees * M_PI / 180.0; // Radians
+          TPointD leftPt = basePoint + dirLeft * len;
+          TPointD rightPt = basePoint + dirRight * len;
 
-          // Rotate direction
-          TPointD dirLeft(
-            direction.x * cos(angleOffset) - direction.y * sin(angleOffset),
-            direction.x * sin(angleOffset) + direction.y * cos(angleOffset)
-          );
-          TPointD dirRight(
-            direction.x * cos(-angleOffset) - direction.y * sin(-angleOffset),
-            direction.x * sin(-angleOffset) + direction.y * cos(-angleOffset)
-          );
+          startLeft = std::make_pair(leftPt.x, leftPt.y);
+          startRight = std::make_pair(rightPt.x, rightPt.y);
 
-          // Create left and right extensions
-          TPointD cleanExtensionLeft = basePoint + dirLeft * len;
-          TPointD cleanExtensionRight = basePoint + dirRight * len;
-
-          startLeft = std::make_pair(cleanExtensionLeft.x, cleanExtensionLeft.y);
-          startRight = std::make_pair(cleanExtensionRight.x, cleanExtensionRight.y);
-
-          DEBUG_LOG("\t\tEndpoint W0 (hook): created center extension, x:" << startCenter.first << ", y:" << startCenter.second << "\n");
-          /**/
+          DEBUG_LOG("\t\tEndpoint W0 (hook-angle): center angle = " << tangentAngleDeg << "deg., delta = " << hookAngleDelta << "deg., x = " << startCenter.first << ", y = " << startCenter.second << "\n");
+        
         }
+
         else {
           startCenter = extendQuadraticBezier(P0, P1, P2, AutocloseFactor, 0.0, true);
           startLeft = extendQuadraticBezier(P0, P1, P2, AutocloseFactor, angleOffset, true);
           startRight = extendQuadraticBezier(P0, P1, P2, AutocloseFactor, -angleOffset, true);
 
-          DEBUG_LOG("\t\tEndpoint W0 (no hook): created center extension, x:" << startCenter.first << ", y:" << startCenter.second << "\n");
+          DEBUG_LOG("\n\t\tEndpoint W0 (no hook): created center extension, x:" << startCenter.first << ", y:" << startCenter.second << "\n");
         }
         // --- CREATE EXTENSIONS ---
         endpointList.push_back(EndpointData{ i, true, true });
@@ -4486,7 +4736,7 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
       }
     }
     else {
-      DEBUG_LOG("Endpoint W0 is not in scope for line:" << s1->getId() << "\n");
+      DEBUG_LOG("\nEndpoint W0 is not in scope for line:" << s1->getId() << "\n");
     }
 
     // --- ENDPOINT W1 ---
@@ -4505,41 +4755,34 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
 
         std::pair<double, double> endCenter, endLeft, endRight;
 
+        // Only proceed if the angle difference confirms a hook
         if (hasHook_W1) {
-        //if (false) {
-          /**/
-          double len = AutocloseFactor;
-          TPointD basePoint_W1 = s1->getThickPoint(1.0); // true end point at W=1.0
+          //double tangentAngleDeg = cleanBodyAngle_W1 + 180.0;
+          double tangentAngleDeg = cleanBodyAngle_W1;
+          double tangentAngleRad = tangentAngleDeg * M_PI / 180.0;
 
-          TPointD direction(avgDir_W1.first, avgDir_W1.second);
-          TPointD cleanExtension = basePoint_W1 + direction * len;
+          // Center direction (clean extension)
+          TPointD dirCenter(std::cos(tangentAngleRad), std::sin(tangentAngleRad));
+          TPointD centerPt = basePoint_W1 + dirCenter * len;
+          endCenter = std::make_pair(centerPt.x, centerPt.y);
 
-          // Center extension
-          endCenter = std::make_pair(cleanExtension.x, cleanExtension.y);
+          // Left and right fan from clean center angle
+          TPointD dirLeft(std::cos(tangentAngleRad + angleOffset), std::sin(tangentAngleRad + angleOffset));
+          TPointD dirRight(std::cos(tangentAngleRad - angleOffset), std::sin(tangentAngleRad - angleOffset));
 
-          // Apply fan-out rotation for left and right
-          //const double angleOffsetDegrees = 10.0; // Fan spread angle
-          //const double angleOffset = angleOffsetDegrees * M_PI / 180.0; // radians
+          TPointD leftPt = basePoint_W1 + dirLeft * len;
+          TPointD rightPt = basePoint_W1 + dirRight * len;
 
-          // Rotate direction
-          TPointD dirLeft(
-            direction.x * cos(angleOffset) - direction.y * sin(angleOffset),
-            direction.x * sin(angleOffset) + direction.y * cos(angleOffset)
-          );
-          TPointD dirRight(
-            direction.x * cos(-angleOffset) - direction.y * sin(-angleOffset),
-            direction.x * sin(-angleOffset) + direction.y * cos(-angleOffset)
-          );
+          endLeft = std::make_pair(leftPt.x, leftPt.y);
+          endRight = std::make_pair(rightPt.x, rightPt.y);
 
-          TPointD cleanExtensionLeft = basePoint_W1 + dirLeft * len;
-          TPointD cleanExtensionRight = basePoint_W1 + dirRight * len;
-
-          endLeft = std::make_pair(cleanExtensionLeft.x, cleanExtensionLeft.y);
-          endRight = std::make_pair(cleanExtensionRight.x, cleanExtensionRight.y);
-
-          DEBUG_LOG("\t\tEndpoint W1 (hook): created center extension, x:" << endCenter.first << ", y:" << endCenter.second << "\n");
-          /**/
+          DEBUG_LOG("\t\tEndpoint W1 (hook-angle): center angle = " << tangentAngleDeg 
+            << "deg., delta = " << hookAngleDelta_W1
+            << "deg., x = " << endCenter.first 
+            << ", y = " << endCenter.second << "\n");
         }
+
+       
         else {
           endCenter = extendQuadraticBezier(P0, P1, P2, AutocloseFactor, 0.0, false);
           endLeft = extendQuadraticBezier(P0, P1, P2, AutocloseFactor, angleOffset, false);
@@ -4696,11 +4939,6 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
               double intersectionX = auxStroke->getPoint(parIntersections.at(pi).first).x;
               double intersectionY = auxStroke->getPoint(parIntersections.at(pi).first).y;
               double d = tdistance(TPointD(s1Originx, s1Originy), TPointD(intersectionX, intersectionY));
-
-              //if (d < AutocloseFactorMin) {
-              //  DEBUG_LOG("\t\tignored: Gap close distance " << d << " from s1 origin " << auxStroke->getPoint(0).x << "," << auxStroke->getPoint(0).y << " to intersection is less than the minimum distance " << AutocloseFactorMin << ".\n");
-              //  continue;
-              //}
 
               if (d > AutocloseFactor) {
                 DEBUG_LOG("\t\tignored: Gap close distance " << d << " from s1 origin " << auxStroke->getPoint(0).x << "," << auxStroke->getPoint(0).y << " to intersection exceeds maximum distance " << AutocloseFactor << ".\n");

@@ -670,6 +670,8 @@ class TapeToolOptionsBox final : public ToolOptionsBox {
   ToolOptionPairSlider *m_autocloseField;
   QLabel* m_dehookLabel;
   ToolOptionPairSlider *m_dehookField;
+  QLabel* m_dehookAngleThresholdLabel;
+  ToolOptionSlider* m_dehookAngleThresholdField;
   QLabel* m_lineExtAngleLabel;
   ToolOptionSlider* m_lineExtAngleField;
 
