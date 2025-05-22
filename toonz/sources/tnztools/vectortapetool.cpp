@@ -43,7 +43,7 @@
 // For Qt translation support
 #include <QCoreApplication>
 
-bool debug_mode = false;  // Set to false to disable debug output
+bool debug_mode = true;  // Set to false to disable debug output
 #define DEBUG_LOG(x) if (debug_mode) std::cout << x // << std::endl
 
 using namespace ToolUtils;
@@ -206,6 +206,7 @@ public:
 
 }  // namespace
 
+/*
 namespace {
 
   class UndoLineExtensionAutoclose final : public ToolUtils::TToolUndo {
@@ -240,7 +241,7 @@ namespace {
         m_column = app->getCurrentColumn()->getColumnIndex();
       }
     }
-
+        
     UndoLineExtensionAutoclose(TXshSimpleLevel* level, const TFrameId& frameId,
       const std::vector<VIStroke*> addedStrokes, std::vector<int> newStrokeIDs)
           : ToolUtils::TToolUndo(level, frameId)
@@ -324,6 +325,7 @@ namespace {
       DEBUG_LOG("undo has made it to step 5\n");
     }
 
+
     void redo() const override {
       DEBUG_LOG("\nUndoLineExtensionAutoclose.redo() was called.\n");
       //if (true) return;
@@ -381,6 +383,7 @@ namespace {
   };
 
 }  // namespace
+*/
 
 //=============================================================================
 // Autoclose Tool
@@ -394,6 +397,7 @@ class VectorTapeTool final : public TTool {
   double m_w1, m_w2, m_pixelSize;
   TPointD m_pos;
   bool m_firstTime;
+  bool m_leftButtonWasDown;
   TRectD m_selectionRect;
   TPointD m_startRect;
 
@@ -436,6 +440,7 @@ public:
       , m_type("Type")
       , m_autocloseFactor("Distance", 0.01, 100, 1.15, 4)
       , m_firstTime(true)
+      , m_leftButtonWasDown(false)
       , m_selectionRect()
       , m_startRect()
       , m_multi("Frame Range:")
@@ -984,7 +989,7 @@ public:
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override {
     if (!(TVectorImageP)getImage(false)) return;
-
+    m_leftButtonWasDown = true;
     if (m_type.getValue() == RECT) {
       SymmetryTool *symmetryTool = dynamic_cast<SymmetryTool *>(
           TTool::getTool("T_Symmetry", TTool::RasterImage));
@@ -1008,10 +1013,11 @@ public:
       }
     } else if (m_type.getValue() == FREEHAND) {
         DEBUG_LOG("leftButtonDown(), FREEHAND\n");
+
         startFreehand(pos);
-      } else if (m_strokeIndex1 != -1) {
+    } else if (m_strokeIndex1 != -1) {
       m_secondPoint = true;
-  }
+    }
   }
 
   //-----------------------------------------------------------------------------
@@ -1553,9 +1559,19 @@ public:
   //-------------------------------------------------------------------------------
 
   void leftButtonUp(const TPointD &pos, const TMouseEvent &e) override {
+    
+    if (!m_leftButtonWasDown) {
+      return;
+    }else
+    {
+      m_leftButtonWasDown = false;
+    }
+
     TTool::Application *app = TTool::getApplication();
 
     TVectorImageP vi(getImage(true));
+
+    DEBUG_LOG("leftButtonUp(), vi exists:" << vi << ", m_type.getValue():" << m_type.getValueAsString() << ", app->getCurrentObject()->objectName():" << app->getCurrentObject()->objectName().toStdString() << "\n");
 
     if (vi && m_type.getValue() == RECT) {
       bool isEditingLevel = app->getCurrentFrame()->isEditingLevel();
@@ -1626,6 +1642,9 @@ public:
     if (vi && m_type.getValue() == FREEHAND) {
       DEBUG_LOG("leftButtonUp() FREEHAND\n");
 
+      if (false) {
+        return;
+      }
       closeFreehand(pos);
 
       if (m_multi.getIndex()) {
@@ -1678,7 +1697,7 @@ public:
 
       TRectD strokeBBox;
       if (m_stroke) {
-         strokeBBox = m_stroke->getBBox();
+        strokeBBox = m_stroke->getBBox();
         DEBUG_LOG("leftButtonUp() FREEHAND, m_stroke, x0,y0: " << strokeBBox.x0 << "," << strokeBBox.y0 << " x1,y1: " << strokeBBox.x1 << "," << strokeBBox.y1 << "\n");
       }
       tapeFreehand(vi, m_stroke, m_track.hasSymmetryBrushes());
@@ -1688,7 +1707,7 @@ public:
         for (int i = 1; i < m_track.getBrushCount(); i++) {
           DEBUG_LOG("leftButtonUp() FREEHAND, has symmetry brushes, int i:" << i << "\n");
           double error = (30.0 / 11) * sqrt(getPixelSize() * getPixelSize());
-          TStroke* symmStroke = m_track.makeStroke(error,i); // make freehand stroke
+          TStroke* symmStroke = m_track.makeStroke(error, i); // make freehand stroke
           strokeBBox = symmStroke->getBBox();
           DEBUG_LOG("leftButtonUp() FREEHAND, symmStroke, x0,y0: " << strokeBBox.x0 << "," << strokeBBox.y0 << " x1,y1: " << strokeBBox.x1 << "," << strokeBBox.y1 << "\n");
           tapeFreehand(vi, symmStroke, true);
@@ -1701,6 +1720,7 @@ public:
       notifyImageChanged();
       invalidate();
       return;
+
     }
 
     if (!vi || m_strokeIndex1 == -1 || !m_secondPoint || m_strokeIndex2 == -1) {
