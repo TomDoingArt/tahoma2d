@@ -70,7 +70,7 @@
 //#include "../toonz/tapp.h"
 //#include "tools/toolhandle.h"
 
-bool debug_mode = true;  // Set to false to disable debug output
+bool debug_mode = false;  // Set to false to disable debug output
 #define DEBUG_LOG(x) if (debug_mode) std::cout << x // << std::endl
 
 double currentCloseFactorMin = -1.0; // Use this to track the current close distance minimum value, to know when it changes.

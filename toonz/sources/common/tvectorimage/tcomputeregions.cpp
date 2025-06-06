@@ -29,6 +29,10 @@
 
 bool debug_mode_1 = false;  // Set to false to disable debug output
 #define DEBUG_LOG(x) if (debug_mode_1) std::cout << x // << std::endl
+
+bool debug_mode_2 = true;  // Set to false to disable debug output
+#define DEBUG_LOG2(x) if (debug_mode_2) std::cout << x // << std::endl
+
 // TomDoingArt ---- TapeTool Freehand - end
 
 #include "tvectorimage.h"  // make sure this include is at the top
@@ -3958,34 +3962,35 @@ struct IntersectionTemp {
 
 //-----------------------------------------------------------------------------
 
-inline double getTangentAngleBetweenW(TStroke* stroke, double w1, double w2) {
+inline double getTangentAngleBetweenW(TStroke* stroke, double fromW, double toW) {
+  DEBUG_LOG("getTangentAngleBetweenW()\n");
   if (!stroke || stroke->getControlPointCount() < 2){
-    DEBUG_LOG("\tstroke->getControlPointCount() < 2 for stroke:" << stroke->getId() << ", w1:" << w1 << ", w2:" << w2 << "\n");
+    DEBUG_LOG2("\tstroke->getControlPointCount() < 2 for stroke:" << stroke->getId() << ", fromW:" << fromW << ", toW:" << toW << "\n");
     return 0.0;
   }
 
   // Clamp W values
-  w1 = std::clamp(w1, 0.0, 1.0);
-  w2 = std::clamp(w2, 0.0, 1.0);
+  fromW = std::clamp(fromW, 0.0, 1.0);
+  toW = std::clamp(toW, 0.0, 1.0);
 
   // Avoid exact same W values
-  if (std::abs(w2 - w1) < 0.0001) {
-    DEBUG_LOG("\tstd::abs(w2 - w1) < 0.0001 for stroke:" << stroke->getId() << ", w1:" << w1 << ", w2:" << w2 << "\n");
+  if (std::abs(toW - fromW) < 0.0001) {
+    DEBUG_LOG("\tstd::abs(toW - fromW) < 0.0001 for stroke:" << stroke->getId() << ", fromW:" << fromW << ", toW:" << toW << "\n");
     return 0.0;
   }
 
   // Get points
-  TPointD p1 = stroke->getThickPoint(w1);
-  TPointD p2 = stroke->getThickPoint(w2);
-  TPointD delta = p2 - p1;
+  TPointD fromPoint = stroke->getThickPoint(fromW);
+  TPointD toPoint = stroke->getThickPoint(toW);
+  TPointD delta = toPoint - fromPoint;
 
   DEBUG_LOG("\tstroke:" << stroke->getId()
-    << ", w1:" << w1
-    << ", p1.x:" << p1.x
-    << ", y:" << p1.y
-    << ", w2:" << w2
-    << ", p2.x:" << p2.x
-    << ", y:" << p2.y
+    << ", fromW:" << fromW
+    << ", fromPoint.x:" << fromPoint.x
+    << ", y:" << fromPoint.y
+    << ", toW:" << toW
+    << ", toPoint.x:" << toPoint.x
+    << ", y:" << toPoint.y
     << "\n");
 
   if (norm2(delta) < 0.000001) {
@@ -4202,7 +4207,7 @@ inline bool detectHookByAngleProgression(TStroke* stroke, bool isStart, double w
   wMin = std::clamp(wMin, angleSampleFactor * 3, 1.0); // ensure enough room for 3 segments
   wMax = std::clamp(wMax, angleSampleFactor * 3, 1.0);
 
-  DEBUG_LOG("Start Stroke:" << stroke->getId()
+  DEBUG_LOG2("Start Stroke:" << stroke->getId()
     << ", isStart:" << isStart
     << ", wMin:" << wMin
     << ", wMax:" << wMax
@@ -4265,7 +4270,7 @@ inline bool detectHookByAngleProgression(TStroke* stroke, bool isStart, double w
   outPredictedAngleDeg = predictedAngle;
   outAngleDelta = delta;
 
-  DEBUG_LOG("Progression Angle Check:"
+  DEBUG_LOG2("Progression Angle Check:"
     << "\n\t a1 = " << a1
     << "\n\t a2 = " << a2
     << "\n\t a3 = " << a3
@@ -4343,7 +4348,7 @@ inline bool detectHookByAngleProgressionTowardTip(
   outPredictedAngleDeg = predictedAngle;
   outAngleDelta = delta;
 
-  DEBUG_LOG("Hook Prediction Toward Tip:"
+  DEBUG_LOG2("Hook Prediction Toward Tip:"
     << "\n\t a1 = " << a1
     << "\n\t a2 = " << a2
     << "\n\t a3 = " << a3
@@ -4352,6 +4357,247 @@ inline bool detectHookByAngleProgressionTowardTip(
     << "\n\t delta = " << delta << "\n");
 
   return delta > angleThresholdDeg;
+}
+
+//-----------------------------------------------------------------------------
+
+//inline bool detectHookAndReturnLastGoodAngle(
+//  TStroke* stroke, bool isStart, double wMin, double angleThresholdDeg,
+//  double& outAngleDelta, double& outHookW, double& outTipAngleDeg,
+//  double& outBodyAngleDeg, double& outLastGoodAngleDeg, double& outLastGoodW)
+//{
+//  DEBUG_LOG2("detectHookAndReturnLastGoodAngle()\n");
+//  if (!stroke || stroke->getControlPointCount() < 2) {
+//    outAngleDelta = 0.0;
+//    outHookW = isStart ? 0.0 : 1.0;
+//    outTipAngleDeg = 0.0;
+//    outBodyAngleDeg = 0.0;
+//    outLastGoodAngleDeg = 0.0;
+//    outLastGoodW = isStart ? 0.0 : 1.0;
+//    return false;
+//  }
+//
+//  const double angleSampleFactor = 0.02;
+//  const double epsilon = 0.001;
+//
+//  auto normalizeAngle = [](double angle) {
+//    while (angle < 0) angle += 360;
+//    while (angle >= 360) angle -= 360;
+//    return angle;
+//  };
+//
+//  auto getTowardTipAngle = [&](double fromW) -> double {
+//    double toW = isStart ? 0.0 : 1.0;
+//    DEBUG_LOG2("from:" << fromW << ", to:" << toW << "\n");
+//    return getTangentAngleBetweenW(stroke, toW, fromW);
+//  };
+//
+//  double tipW = isStart ? 0.0 : 1.0;
+//  double tipAngle = normalizeAngle(getTangentAngleBetweenW(
+//    stroke, isStart ? angleSampleFactor : 1.0 - angleSampleFactor, tipW));
+//  double bodyAngle = normalizeAngle(getTowardTipAngle(wMin));
+//  double delta = std::abs(tipAngle - bodyAngle);
+//  if (delta > 180.0) delta = 360.0 - delta;
+//
+//  outTipAngleDeg = tipAngle;
+//  outBodyAngleDeg = bodyAngle;
+//  outAngleDelta = delta;
+//
+//  if (delta <= angleThresholdDeg) {
+//    outLastGoodAngleDeg = bodyAngle;
+//    outLastGoodW = wMin;
+//    return false;
+//  }
+//
+//  double wLow = wMin;
+//  double wHigh = isStart ? angleSampleFactor : 1.0 - angleSampleFactor;
+//  double hookW = wLow;
+//
+//  double lastGoodAngle = bodyAngle;
+//  double lastGoodW = wMin;
+//
+//  while (std::abs(wHigh - wLow) > epsilon) {
+//    double wMid = (wLow + wHigh) / 2.0;
+//    double midAngle = normalizeAngle(getTowardTipAngle(wMid));
+//    double angleDelta = std::abs(tipAngle - midAngle);
+//    if (angleDelta > 180.0) angleDelta = 360.0 - angleDelta;
+//
+//    if (angleDelta > angleThresholdDeg) {
+//      hookW = wMid;
+//      wHigh = wMid;  // Narrow toward body
+//    }
+//    else {
+//      lastGoodAngle = midAngle;
+//      lastGoodW = wMid;
+//      wLow = wMid;   // Continue toward tip
+//    }
+//  }
+//
+//  outHookW = hookW;
+//  outAngleDelta = std::abs(normalizeAngle(getTowardTipAngle(hookW)) - tipAngle);
+//  if (outAngleDelta > 180.0) outAngleDelta = 360.0 - outAngleDelta;
+//
+//  outLastGoodAngleDeg = lastGoodAngle;
+//  outLastGoodW = lastGoodW;
+//
+//  DEBUG_LOG("Hook Detection with Last Good Angle:"
+//    << "\n\t bodyAngle_W0 = " << bodyAngle
+//    << "\n\t tipAngle_W0 = " << tipAngle
+//    << "\n\t lastGoodAngle_W0 = " << lastGoodAngle
+//    << "\n\t lastGoodW_W0 = " << lastGoodW
+//    << "\n\t hookW_W0 = " << hookW
+//    << "\n\t delta = " << outAngleDelta << "\n");
+//
+//  return true;
+//}
+
+inline bool detectHookAndReturnLastGoodAngle(
+  TStroke* stroke, bool isStart, double wMin, double angleThresholdDeg,
+  double& outAngleDelta, double& outHookW, double& outTipAngleDeg,
+  double& outBodyAngleDeg, double& outLastGoodAngleDeg, double& outLastGoodW)
+{
+  DEBUG_LOG2("detectHookAndReturnLastGoodAngle(), stroke:" << stroke->getId() << ", isStart:" << isStart << "\n");
+  if (!stroke || stroke->getControlPointCount() < 2) {
+    outAngleDelta = 0.0;
+    outHookW = isStart ? 0.0 : 1.0;
+    outTipAngleDeg = 0.0;
+    outBodyAngleDeg = 0.0;
+    outLastGoodAngleDeg = 0.0;
+    outLastGoodW = isStart ? 0.0 : 1.0;
+    return false;
+  }
+  
+  const double angleSampleFactor = 0.02;
+  const double epsilon = 0.001;
+
+  auto normalizeAngle = [](double angle) {
+    while (angle < 0) angle += 360;
+    while (angle >= 360) angle -= 360;
+    return angle;
+  };
+
+  auto getTowardTipAngle = [&](double fromW) -> double {
+    //double toW = isStart ? 0.0 : 1.0;
+    double toW = isStart ? fromW - angleSampleFactor: 1.0 - fromW + angleSampleFactor;
+    double fromWTemp = isStart ? fromW : 1.0 - fromW;
+    DEBUG_LOG2("getTowardTipAngle, from:" << fromWTemp << ", to:" << toW);
+    return getTangentAngleBetweenW(stroke, fromWTemp, toW);
+  };
+
+  // get tip angle
+  double tipW = isStart ? 0.0 : 1.0;
+  double tipAngle = normalizeAngle(getTangentAngleBetweenW(
+    stroke, isStart ? angleSampleFactor : 1.0 - angleSampleFactor, tipW));
+
+  // get body angle
+  double bodyAngle = normalizeAngle(getTowardTipAngle(wMin));
+  double delta = std::abs(tipAngle - bodyAngle);
+  if (delta > 180.0) delta = 360.0 - delta;
+
+  DEBUG_LOG2(", bodyAngle:" << bodyAngle << ", delta:" << delta << "\n");
+
+  outTipAngleDeg = tipAngle;
+  outBodyAngleDeg = bodyAngle;
+  outAngleDelta = delta;
+
+  if (delta <= angleThresholdDeg) {
+    outLastGoodAngleDeg = bodyAngle;
+    outLastGoodW = wMin;
+    DEBUG_LOG2("Hook Detection with Last Good Angle, no hook\n");
+    return false;
+  }
+
+  // hook detected, so find the location...
+
+  double wLow = wMin;
+  double wHigh = isStart ? angleSampleFactor : 1.0 - angleSampleFactor;
+  double hookW = wLow;
+
+  double lastGoodAngle_3, lastGoodAngle_2, lastGoodAngle;
+  lastGoodAngle_3 = lastGoodAngle_2 = lastGoodAngle = bodyAngle;
+
+  double lastGoodW_3, lastGoodW_2, lastGoodW;
+  lastGoodW_3 = lastGoodW_2 = lastGoodW = wLow;
+
+  //while (std::abs(wHigh - wLow) > epsilon) {
+  //  double wMid = (wLow + wHigh) / 2.0;
+  //  double midAngle = normalizeAngle(getTowardTipAngle(wMid));
+  //  double angleDelta = std::abs(tipAngle - midAngle);
+  //  if (angleDelta > 180.0) angleDelta = 360.0 - angleDelta;
+
+  //  if (angleDelta > angleThresholdDeg) {
+  //    hookW = wMid;
+  //    wHigh = wMid;  // Narrow toward body
+  //  }
+  //  else {
+  //    lastGoodAngle = midAngle;
+  //    lastGoodW = wMid;
+  //    wLow = wMid;   // Continue toward tip
+  //  }
+  //}
+  
+
+  while (wLow > 0.0) {
+    double midAngle = normalizeAngle(getTowardTipAngle(wLow));
+    double angleDelta = std::abs(tipAngle - midAngle);
+    if (angleDelta > 180.0) angleDelta = 360.0 - angleDelta;
+    DEBUG_LOG2(", midAngle:" << midAngle << ", angleDelta:" << angleDelta << "\n");
+    if (angleDelta >= angleThresholdDeg) {
+      
+      lastGoodAngle_3 = lastGoodAngle_2;
+      lastGoodAngle_2 = lastGoodAngle;
+      lastGoodAngle = midAngle;
+
+      lastGoodW_3 = lastGoodW_2;
+      lastGoodW_2 = lastGoodW;
+      lastGoodW = wLow;
+
+      wLow = wLow - angleSampleFactor;
+    }
+    else
+    {
+      hookW = wLow;
+      wLow = 0.0;
+      break;
+    }
+  }
+
+  outHookW = hookW;
+  outAngleDelta = std::abs(normalizeAngle(getTowardTipAngle(hookW)) - tipAngle);
+  if (outAngleDelta > 180.0) outAngleDelta = 360.0 - outAngleDelta;
+
+  DEBUG_LOG2(", tipAngle:" << tipAngle << ", outAngleDelta:" << outAngleDelta << "\n");
+
+  outLastGoodAngleDeg = lastGoodAngle_3;
+  outLastGoodW = lastGoodW_3;
+
+  DEBUG_LOG2("Hook Detection with Last Good Angle: hook detected");
+  DEBUG_LOG2(", lastGoodW_3:" << lastGoodW_3 
+    << ", lastGoodAngle_3:"<< lastGoodAngle_3
+    << ", lastGoodW_2:" << lastGoodW_2
+    << ", lastGoodAngle_2:" << lastGoodAngle_2 
+    << ", lastGoodW:" << lastGoodW
+    << ", lastGoodAngle:" << lastGoodAngle 
+    << "\n");
+    //<< "\n\t bodyAngle_W0 = " << bodyAngle
+    //<< "\n\t tipAngle_W0 = " << tipAngle
+    //<< "\n\t lastGoodAngle_W0 = " << lastGoodAngle
+    //<< "\n\t lastGoodW_W0 = " << lastGoodW
+    //<< "\n\t hookW_W0 = " << hookW
+    //<< "\n\t delta = " << outAngleDelta << "\n");
+  
+    //TStroke* stroke, 
+    //bool isStart, 
+    //double wMin, 
+    //double angleThresholdDeg,
+    //double& outAngleDelta, 
+    //double& outHookW, 
+    //double& outTipAngleDeg,
+    //double& outBodyAngleDeg, 
+    //double& outLastGoodAngleDeg, 
+    //double& outLastGoodW)
+
+  return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -4505,7 +4751,10 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
   vector<pair<int, double>>& endPoints,
   vector<pair<pair<double, double>, pair<double, double>>>& lineExtensions,
   bool debugMessages, bool returnLineExtensions) {
-  debug_mode_1 = debugMessages;
+  
+  //debug_mode_1 = debugMessages;
+  debug_mode_1 = false;
+  
   DEBUG_LOG("getLineExtensionClosingPoints\n");
   const int lineExtensionColorstyle = 2;
   UINT strokeCount = vi->getStrokeCount();
@@ -4614,6 +4863,7 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
     */
 
     //double angleDelta, predictedAngle;
+    /*
     bool hasHook_W0 = detectHookByAngleProgressionTowardTip(
       s1,
       true,
@@ -4622,7 +4872,33 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
       TapeDehookAngleThreshold,
       hookAngleDelta,
       cleanBodyAngle);
+    */
 
+    double angleDelta_W0, hookW_W0, tipAngle_W0, bodyAngle_W0, lastGoodAngle_W0, lastGoodW_W0;
+    bool hasHook_W0_a = detectHookAndReturnLastGoodAngle(
+      s1, 
+      true, 
+      TapeDehookFactorMin,
+      TapeDehookAngleThreshold,
+      angleDelta_W0, 
+      hookW_W0, 
+      tipAngle_W0, 
+      bodyAngle_W0, 
+      lastGoodAngle_W0, 
+      lastGoodW_W0);
+
+    hookAngleDelta = angleDelta_W0;
+    cleanBodyAngle = lastGoodAngle_W0;
+
+    DEBUG_LOG2(">>>>>>>>> hasHook_W0_a:" << hasHook_W0_a
+      << ", lastGoodAngle_W0:" << lastGoodAngle_W0
+      << ", angleDelta_W0:" << angleDelta_W0
+      << ", hookW_W0:" << hookW_W0
+      << ", tipAngle_W0:" << tipAngle_W0
+      << ", bodyAngle_W0:" << bodyAngle_W0
+      << ", lastGoodAngle_W0:" << lastGoodAngle_W0
+      << ", lastGoodW_W0:" << lastGoodW_W0
+      << "\n");
 
     TPointD basePoint_W1 = s1->getThickPoint(1.0);
 
@@ -4661,6 +4937,7 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
     */
 
     //double angleDelta_W1, predictedAngle_W1;
+    /*
     bool hasHook_W1 = detectHookByAngleProgressionTowardTip(
       s1,
       false,
@@ -4670,6 +4947,35 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
       hookAngleDelta_W1,
       cleanBodyAngle_W1
     );
+    */
+
+
+    double angleDelta_W1, hookW_W1, tipAngle_W1, bodyAngle_W1, lastGoodAngle_W1, lastGoodW_W1;
+    bool hasHook_W1_a = detectHookAndReturnLastGoodAngle(
+      s1,
+      false,
+      TapeDehookFactorMin,
+      TapeDehookAngleThreshold,
+      angleDelta_W1,
+      hookW_W1,
+      tipAngle_W1,
+      bodyAngle_W1,
+      lastGoodAngle_W1,
+      lastGoodW_W1);
+
+    hookAngleDelta_W1 = angleDelta_W1;
+    cleanBodyAngle_W1 = lastGoodAngle_W1;
+
+
+    DEBUG_LOG2(">>>>>>>>> hasHook_W1_a:" << hasHook_W1_a 
+      << ", lastGoodAngle_W1:" << lastGoodAngle_W1 
+      << ", angleDelta_W1:"    << angleDelta_W1
+      << ", hookW_W1:"         << hookW_W1
+      << ", tipAngle_W1:"      << tipAngle_W1
+      << ", bodyAngle_W1:"     << bodyAngle_W1
+      << ", lastGoodAngle_W1:" << lastGoodAngle_W1
+      << ", lastGoodW_W1:"     << lastGoodW_W1
+      << "\n");
 
 
 
@@ -4696,7 +5002,7 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
 
 
         // Only apply fix if hook detected
-        if (hasHook_W0) {
+        if (hasHook_W0_a) {
           //double tangentAngleDeg = cleanBodyAngle + 180.0;  // Flip direction
           double tangentAngleDeg = cleanBodyAngle;
           double tangentAngleRad = tangentAngleDeg * M_PI / 180.0;
@@ -4756,7 +5062,7 @@ void getLineExtensionClosingPoints(const TRectD& rect, const TVectorImageP& vi,
         std::pair<double, double> endCenter, endLeft, endRight;
 
         // Only proceed if the angle difference confirms a hook
-        if (hasHook_W1) {
+        if (hasHook_W1_a) {
           //double tangentAngleDeg = cleanBodyAngle_W1 + 180.0;
           double tangentAngleDeg = cleanBodyAngle_W1;
           double tangentAngleRad = tangentAngleDeg * M_PI / 180.0;

@@ -421,6 +421,8 @@ class VectorTapeTool final : public TTool {
   std::pair<int, int> m_currCell;
   SymmetryStroke m_firstPolyline;
   TXshSimpleLevelP m_level;
+  //TStroke m_freehandLasso;
+  TStroke* m_firstFreehandLasso;
 
 public:
   VectorTapeTool()
@@ -696,10 +698,16 @@ public:
     }
 
     if (m_type.getValue() == FREEHAND) {
+      //if (m_multi.getIndex() && m_firstFrameSelected) {
+      //  if (m_firstPolyline.size() > 1) {
+      //    m_firstPolyline.drawRectangle(color);
+      //  }
+      //  else
+      //    ToolUtils::drawRect(m_firstRect, color, 0x3F33, true);
+      //}
       if (!m_track.isEmpty()) {
         double pixelSize2 = getPixelSize() * getPixelSize();
         m_thick           = sqrt(pixelSize2) / 2.0;
-
         TPixel color =
             ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
                 ? TPixel32::White
@@ -707,6 +715,13 @@ public:
         tglColor(color);
         m_track.drawAllFragments();
       }
+      //if (!m_selectionRect.isEmpty()){
+      //  if (m_polyline.size() > 1) {
+      //    m_polyline.drawRectangle(color);
+      //  } else {
+      //    ToolUtils::drawRect(m_selectionRect, color, 0x3F33, true);
+      //  }
+      //}
       return;
     }
 
@@ -1043,7 +1058,7 @@ public:
     }
 
     if (m_type.getValue() == FREEHAND) {
-      DEBUG_LOG("leftButtonDrag(), FREEHAND\n");
+      //DEBUG_LOG("leftButtonDrag(), FREEHAND\n");
 
       // update the selection line while dragging
       freehandDrag(pos);
@@ -1337,9 +1352,66 @@ public:
 
   //----------------------------------------------------------------------
 
-  void multiTapeFreehand(TStroke* stroke) {
+  void multiTapeFreehand(TStroke* stroke, TFrameId firstFrameId, TFrameId lastFrameId) {
     TTool::Application* app = TTool::getApplication();
 
+    //TFrameId firstFrameId = m_firstFrameId;
+    //TFrameId lastFrameId = getFrameId();
+
+    DEBUG_LOG("multiTapeFreehand(stroke, firstFrameId, lastFrameId)\n");
+    bool backward = false;
+    if (firstFrameId > lastFrameId){
+      std::swap(firstFrameId, lastFrameId);
+      backward = true;
+    }
+
+    assert(firstFrameId <= lastFrameId);
+    
+    std::vector<TFrameId> allFids;
+    m_level->getFids(allFids);
+
+    std::vector<TFrameId>::iterator i0 = allFids.begin();
+    while (i0 != allFids.end() && *i0 < firstFrameId) i0++;
+    std::vector<TFrameId>::iterator i1 = i0;
+    while (i1 != allFids.end() && *i1 <= lastFrameId) i1++;
+    
+    std::vector<TFrameId> fids(i0, i1);
+    assert(io < i1);
+    
+    int m = fids.size();
+    assert(m > 0);
+
+    if (fids.empty()) return;
+
+    enum TInbetween::TweenAlgorithm algorithm = TInbetween::LinearInterpolation;
+    switch (m_multi.getIndex()) {
+    case 2: algorithm = TInbetween::EaseInInterpolation; break;
+    case 3: algorithm = TInbetween::EaseOutInterpolation; break;
+    case 4: algorithm = TInbetween::EaseInOutInterpolation; break;
+    }
+
+    TUndoManager::manager()->beginBlock();
+    for (int i = 0; i < (int)fids.size(); ++i) {
+      double t = fids.size() > 1 ? (double)i / (double)(fids.size() - 1) : 0.5;
+      t = TInbetween::interpolation(t, algorithm);
+
+      TFrameId fid = fids[i];
+      app->getCurrentFrame()->setFid(fid);
+      TVectorImageP vi = m_level->getFrame(fid, true);
+      if (!vi) continue;
+
+      tapeFreehand(vi, stroke, true);  // Apply tape to each frame
+    }
+    TUndoManager::manager()->endBlock();
+
+    TTool::getApplication()->getCurrentXsheet()->notifyXsheetChanged();
+  }
+
+  //----------------------------------------------------------------------
+
+  void multiTapeFreehand(TStroke* stroke, int firstFrameIdx, int lastFrameIdx) {
+    TTool::Application* app = TTool::getApplication();
+    DEBUG_LOG("multiTapeFreehand(stroke, firstFrameIdx, lastFrameIdx)\n");
     TFrameId firstFrameId = m_firstFrameId;
     TFrameId lastFrameId = getFrameId();
 
@@ -1377,6 +1449,8 @@ public:
       tapeFreehand(vi, stroke, true);  // Apply tape to each frame
     }
     TUndoManager::manager()->endBlock();
+
+    TTool::getApplication()->getCurrentXsheet()->notifyXsheetChanged();
   }
 
     //----------------------------------------------------------------------
@@ -1413,7 +1487,8 @@ public:
     }
 
     TUndoManager::manager()->beginBlock();
-    for (int i = 0; i <= m; ++i) {
+    //for (int i = 0; i <= m; ++i) {
+    for (int i = 0; i < m; ++i) {
       TFrameId fid     = fids[i];
       TVectorImageP vi = (TVectorImageP)m_level->getFrame(fid, true);
       if (!vi) continue;
@@ -1604,8 +1679,9 @@ public:
             if (app->getCurrentFrame()->isEditingScene()) {
               app->getCurrentColumn()->setColumnIndex(m_currCell.first);
               app->getCurrentFrame()->setFrame(m_currCell.second);
-            } else
+            } else {
               app->getCurrentFrame()->setFid(m_veryFirstFrameId);
+            }
             m_firstFrameSelected = false;
           }
 
@@ -1641,11 +1717,10 @@ public:
 
     if (vi && m_type.getValue() == FREEHAND) {
       DEBUG_LOG("leftButtonUp() FREEHAND\n");
-
-      if (false) {
-        return;
-      }
-      closeFreehand(pos);
+      bool isEditingLevel = app->getCurrentFrame()->isEditingLevel();
+      bool isEditingScene = app->getCurrentFrame()->isEditingScene();
+      DEBUG_LOG("app->getCurrentFrame()->isEditingLevel():" << isEditingLevel << ", app->getCurrentFrame()->isEditingScene():" << app->getCurrentFrame()->isEditingScene());
+      closeFreehand(pos);  // complete the freehand stroke
 
       if (m_multi.getIndex()) {
         DEBUG_LOG("leftButtonUp() FREEHAND, Multi, first click\n");
@@ -1653,53 +1728,66 @@ public:
         if (!m_firstFrameSelected) {
           DEBUG_LOG("leftButtonUp() FREEHAND, Multi, first frame select\n");
           m_currCell = std::pair<int, int>(getColumnIndex(), getFrame());
+          m_firstFreehandLasso = m_stroke;
           m_firstFrameId = m_veryFirstFrameId = getFrameId();
-          m_firstFrameIdx = getFrame();
+          m_firstFrameIdx                     = getFrame();
+          m_firstPolyline                     = m_polyline;
           m_level = app->getCurrentLevel()->getLevel()
             ? app->getCurrentLevel()->getSimpleLevel()
             : 0;
           m_firstFrameSelected = true;
-        }
-        else {
+        } else {
           DEBUG_LOG("leftButtonUp() FREEHAND, Multi, additional frames select\n");
-          multiTapeFreehand(m_stroke);
+          if (app->getCurrentFrame()->isEditingScene()){
+            multiTapeFreehand(m_stroke, m_firstFrameIdx, getFrame()); // int values, level strip
+          } else{
+            multiTapeFreehand(m_stroke, m_firstFrameId, getFrameId()); // TFrame values, xsheet/timeline
+          }
+
+          //invalidate(m_selectionRect.enlarge(2)); // is this to clear the selection border on screen? if so, need bbox as rect for lasso probably.
+          invalidate(m_stroke->getBBox().enlarge(2));
 
           if (e.isShiftPressed()) {
             m_currCell = std::pair<int, int>(getColumnIndex(), getFrame());
-            m_firstFrameId = getFrameId();
-            m_firstFrameIdx = getFrame();
-          }
-          else {
-            if (app->getCurrentFrame()->isEditingScene()) {
+            m_firstFreehandLasso = m_stroke; //m_firstRect = m_selectionRect;
+            m_firstFrameId = m_veryFirstFrameId = getFrameId();
+            m_firstFrameIdx                     = getFrame();
+            m_firstPolyline                     = m_polyline;
+          } else {
+            //if (app->getCurrentFrame()->isEditingScene()) { // xsheet/timeline
+            if (!isEditingLevel) { // xsheet/timeline
+              DEBUG_LOG("<<< leave me active on the xsheet/timeline >>>\n");             
               app->getCurrentColumn()->setColumnIndex(m_currCell.first);
               app->getCurrentFrame()->setFrame(m_currCell.second);
-            }
-            else
+            } else{ // level strip
+              DEBUG_LOG("<<< leave me active on the Level Strip >>>\n");
               app->getCurrentFrame()->setFid(m_veryFirstFrameId);
+            }
             m_firstFrameSelected = false;
           }
 
+          //m_selectionRect = TRectD();
+          //m_startRect = TPointD();
+          //m_polyline.reset();
+          m_stroke = new TStroke();
           m_track.reset();
-          notifyImageChanged();
-          invalidate();
-          return;
+          //m_firstFreehandLasso = m_stroke;
+          m_polyline.reset();
         }
+        return;
       }
-
-      // No multi-tape: do normal tape
-
       DEBUG_LOG("leftButtonUp() FREEHAND, m_track.hasSymmetryBrushes():" << m_track.hasSymmetryBrushes() << ", brush count:" << m_track.getBrushCount() << "\n");
 
-      if (m_track.hasSymmetryBrushes()) {
+      if (m_polyline.hasSymmetryBrushes()) {
         DEBUG_LOG("leftButtonUp() FREEHAND, has symmetry brushes, begin undo block\n");
         TUndoManager::manager()->beginBlock();
       }
+      //TRectD strokeBBox;
+      //if (m_stroke) {
+      //  strokeBBox = m_stroke->getBBox();
+      //  DEBUG_LOG("leftButtonUp() FREEHAND, m_stroke, x0,y0: " << strokeBBox.x0 << "," << strokeBBox.y0 << " x1,y1: " << strokeBBox.x1 << "," << strokeBBox.y1 << "\n");
+      //}
 
-      TRectD strokeBBox;
-      if (m_stroke) {
-        strokeBBox = m_stroke->getBBox();
-        DEBUG_LOG("leftButtonUp() FREEHAND, m_stroke, x0,y0: " << strokeBBox.x0 << "," << strokeBBox.y0 << " x1,y1: " << strokeBBox.x1 << "," << strokeBBox.y1 << "\n");
-      }
       tapeFreehand(vi, m_stroke, m_track.hasSymmetryBrushes());
 
       if (m_track.hasSymmetryBrushes()) {
@@ -1708,19 +1796,26 @@ public:
           DEBUG_LOG("leftButtonUp() FREEHAND, has symmetry brushes, int i:" << i << "\n");
           double error = (30.0 / 11) * sqrt(getPixelSize() * getPixelSize());
           TStroke* symmStroke = m_track.makeStroke(error, i); // make freehand stroke
-          strokeBBox = symmStroke->getBBox();
-          DEBUG_LOG("leftButtonUp() FREEHAND, symmStroke, x0,y0: " << strokeBBox.x0 << "," << strokeBBox.y0 << " x1,y1: " << strokeBBox.x1 << "," << strokeBBox.y1 << "\n");
+          //TRectD strokeBBox;
+          //strokeBBox = symmStroke->getBBox();
+          //DEBUG_LOG("leftButtonUp() FREEHAND, symmStroke, x0,y0: " << strokeBBox.x0 << "," << strokeBBox.y0 << " x1,y1: " << strokeBBox.x1 << "," << strokeBBox.y1 << "\n");
           tapeFreehand(vi, symmStroke, true);
         }
 
         TUndoManager::manager()->endBlock();
       }
 
+      //m_selectionRect = TRectD();
+      //m_startRect = TPointD();
+      // 
+      //m_polyline.reset();
+      //notifyImageChanged();
+      //invalidate();
+
       m_track.reset();
       notifyImageChanged();
       invalidate();
       return;
-
     }
 
     if (!vi || m_strokeIndex1 == -1 || !m_secondPoint || m_strokeIndex2 == -1) {
